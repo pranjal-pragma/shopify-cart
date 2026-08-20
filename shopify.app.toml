@@ -1,0 +1,24 @@
+# Replace the values below with those from your Shopify Dev Dashboard.
+client_id = "replace-me"
+name = "FastAPI Shopify App"
+application_url = "https://app.example.com"
+embedded = true
+
+[access_scopes]
+scopes = "read_products"
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = []
+
+[webhooks]
+api_version = "2026-07"
+
+[[webhooks.subscriptions]]
+topics = ["app/uninstalled"]
+uri = "/api/v1/shopify/webhooks"
+
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "/api/v1/shopify/webhooks"
+
