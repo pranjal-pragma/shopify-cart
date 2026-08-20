@@ -1,5 +1,9 @@
 .DS_Store
 .env
+/shopify.app.toml
+/uv.lock
+package-lock.json
+/admin/
 .venv/
 .pytest_cache/
 .ruff_cache/
@@ -11,4 +15,5 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-
+.vscode/
+.shopify/

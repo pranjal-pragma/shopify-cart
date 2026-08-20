@@ -8,4 +8,5 @@ __pycache__
 .mypy_cache
 tests
 htmlcov
-
+admin/node_modules
+admin/dist

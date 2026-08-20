@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -23,6 +21,13 @@ class ShopConnectionResponse(BaseModel):
     expires_in: int | None = None
 
 
-class GraphQLRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=100_000)
-    variables: dict[str, Any] = Field(default_factory=dict)
+class MerchantResponse(BaseModel):
+    shop_domain: str
+    connected: bool
+    scopes: list[str]
+    onboarding_completed: bool
+
+
+class ShopifyInstallationIdentity(BaseModel):
+    shop_gid: str
+    app_installation_gid: str

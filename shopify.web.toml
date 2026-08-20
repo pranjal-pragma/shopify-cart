@@ -1,0 +1,7 @@
+name = "FastAPI App"
+roles = ["frontend", "backend"]
+webhooks_path = "/api/v1/shopify/webhooks"
+
+[commands]
+dev = "npm run dev"
+build = "npm run build"

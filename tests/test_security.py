@@ -36,37 +36,61 @@ def test_token_cipher_round_trip() -> None:
     assert cipher.decrypt(encrypted) == "shpat_secret"
 
 
-def test_decode_session_token() -> None:
+def make_token(
+    *,
+    audience: str = "client-id",
+    destination: str = "https://example-shop.myshopify.com",
+    secret: str = TEST_SECRET,
+    expires_delta: timedelta = timedelta(minutes=1),
+) -> str:
     now = datetime.now(UTC)
-    token = jwt.encode(
+    return jwt.encode(
         {
-            "aud": "client-id",
-            "dest": "https://example-shop.myshopify.com",
+            "aud": audience,
+            "dest": destination,
             "sub": "42",
             "iat": now,
             "nbf": now - timedelta(seconds=1),
-            "exp": now + timedelta(minutes=1),
+            "exp": now + expires_delta,
         },
-        TEST_SECRET,
+        secret,
         algorithm="HS256",
     )
+
+
+def test_decode_session_token() -> None:
+    token = make_token()
     claims = decode_session_token(token=token, client_id="client-id", client_secret=TEST_SECRET)
     assert claims["shop_domain"] == "example-shop.myshopify.com"
 
 
 def test_decode_session_token_rejects_non_shopify_destination() -> None:
-    now = datetime.now(UTC)
-    token = jwt.encode(
-        {
-            "aud": "client-id",
-            "dest": "https://attacker.example",
-            "sub": "42",
-            "iat": now,
-            "nbf": now - timedelta(seconds=1),
-            "exp": now + timedelta(minutes=1),
-        },
-        TEST_SECRET,
-        algorithm="HS256",
-    )
+    token = make_token(destination="https://attacker.example")
     with pytest.raises(AuthenticationError):
         decode_session_token(token=token, client_id="client-id", client_secret=TEST_SECRET)
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        make_token(audience="wrong-client"),
+        make_token(secret="wrong-secret-that-is-at-least-32-bytes"),
+        make_token(expires_delta=timedelta(minutes=-1)),
+    ],
+)
+def test_decode_session_token_rejects_invalid_claims(token: str) -> None:
+    with pytest.raises(AuthenticationError):
+        decode_session_token(token=token, client_id="client-id", client_secret=TEST_SECRET)
+
+
+def test_token_cipher_rotates_previous_key() -> None:
+    old_key = Fernet.generate_key().decode()
+    new_key = Fernet.generate_key().decode()
+    old_cipher = TokenCipher(old_key)
+    cipher = TokenCipher(new_key, [old_key])
+
+    plaintext, rotated = cipher.decrypt_with_rotation(old_cipher.encrypt("shpat_secret"))
+
+    assert plaintext == "shpat_secret"
+    assert rotated is not None
+    assert TokenCipher(new_key).decrypt(rotated) == "shpat_secret"

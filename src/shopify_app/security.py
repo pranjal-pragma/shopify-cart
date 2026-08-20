@@ -54,17 +54,30 @@ def decode_session_token(*, token: str, client_id: str, client_secret: str) -> d
 
 
 class TokenCipher:
-    def __init__(self, key: str) -> None:
+    def __init__(self, key: str, previous_keys: list[str] | None = None) -> None:
         try:
             self._fernet = Fernet(key.encode())
+            self._previous_fernets = [Fernet(item.encode()) for item in previous_keys or []]
         except (ValueError, TypeError) as exc:
-            raise ValueError("APP_TOKEN_ENCRYPTION_KEY must be a valid Fernet key") from exc
+            raise ValueError("token encryption keys must be valid Fernet keys") from exc
 
     def encrypt(self, value: str) -> bytes:
         return self._fernet.encrypt(value.encode())
 
     def decrypt(self, value: bytes) -> str:
+        plaintext, _ = self.decrypt_with_rotation(value)
+        return plaintext
+
+    def decrypt_with_rotation(self, value: bytes) -> tuple[str, bytes | None]:
         try:
-            return self._fernet.decrypt(value).decode()
-        except InvalidToken as exc:
-            raise AuthenticationError("stored token could not be decrypted") from exc
+            return self._fernet.decrypt(value).decode(), None
+        except InvalidToken:
+            pass
+
+        for previous in self._previous_fernets:
+            try:
+                plaintext = previous.decrypt(value).decode()
+                return plaintext, self.encrypt(plaintext)
+            except InvalidToken:
+                continue
+        raise AuthenticationError("stored token could not be decrypted")

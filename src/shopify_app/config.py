@@ -19,10 +19,13 @@ class Settings(BaseSettings):
     env: Literal["development", "test", "production"] = "development"
     debug: bool = False
     allowed_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
-    database_url: str = "postgresql+asyncpg://shopify:shopify@localhost:5432/shopify_app"
+    database_url: str = "postgresql+asyncpg://shopify:shopify@localhost:5433/shopify_app"
+    shopify_app_name: str = "Pragma Cart"
+    shopify_app_url: str = "https://app.example.com"
     shopify_client_id: str = "replace-me"
     shopify_client_secret: SecretStr = SecretStr("replace-me")
     token_encryption_key: SecretStr = SecretStr("replace-me")
+    token_encryption_previous_keys: list[SecretStr] = Field(default_factory=list)
     shopify_api_version: str = "2026-07"
     http_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"

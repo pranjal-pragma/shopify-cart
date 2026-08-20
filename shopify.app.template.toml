@@ -1,7 +1,6 @@
-# Replace the values below with those from your Shopify Dev Dashboard.
-client_id = "replace-me"
-name = "FastAPI Shopify App"
-application_url = "https://app.example.com"
+client_id = __SHOPIFY_CLIENT_ID__
+name = __SHOPIFY_APP_NAME__
+application_url = __SHOPIFY_APP_URL__
 embedded = true
 
 [access_scopes]
@@ -21,4 +20,3 @@ uri = "/api/v1/shopify/webhooks"
 [[webhooks.subscriptions]]
 compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
 uri = "/api/v1/shopify/webhooks"
-

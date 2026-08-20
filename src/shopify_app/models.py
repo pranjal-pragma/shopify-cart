@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, LargeBinary, String, func
+from sqlalchemy import JSON, Boolean, DateTime, LargeBinary, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shopify_app.db import Base, TimestampMixin
@@ -16,6 +16,18 @@ class ShopSession(TimestampMixin, Base):
     encrypted_access_token: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     scopes: Mapped[str] = mapped_column(String(2048), default="", nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    shop_gid: Mapped[str | None] = mapped_column(String(255))
+    app_installation_gid: Mapped[str | None] = mapped_column(String(255))
+    installation_status: Mapped[str] = mapped_column(
+        String(32), default="active", server_default="active", nullable=False
+    )
+    onboarding_completed: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    installed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    uninstalled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class WebhookDelivery(Base):

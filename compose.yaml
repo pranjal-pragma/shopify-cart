@@ -2,11 +2,11 @@ services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: shopify_cart_app
+      POSTGRES_DB: shopify_app
       POSTGRES_USER: shopify
       POSTGRES_PASSWORD: shopify
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U shopify -d shopify_app"]
       interval: 5s
@@ -15,6 +15,44 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  app-debug:
+    profiles: ["debug"]
+    build:
+      context: .
+      target: debugger
+      args:
+        VITE_SHOPIFY_API_KEY: ${APP_SHOPIFY_CLIENT_ID:-replace-me}
+    env_file:
+      - .env
+    environment:
+      APP_DATABASE_URL: postgresql+asyncpg://shopify:shopify@db:5432/shopify_app
+    command:
+      - uv
+      - run
+      - --frozen
+      - --no-sync
+      - python
+      - -Xfrozen_modules=off
+      - -m
+      - debugpy
+      - --listen
+      - 0.0.0.0:5678
+      - --wait-for-client
+      - -m
+      - uvicorn
+      - shopify_app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    ports:
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - ./src:/app/src:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres-data:
-

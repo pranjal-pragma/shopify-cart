@@ -8,13 +8,67 @@ verified and deduplicated webhooks, encrypted access tokens, structured logs, an
 
 Prerequisites: Python 3.12/3.13, `uv`, Docker, and Shopify CLI.
 
+The Docker PostgreSQL service is exposed on `localhost:5433` so it does not conflict with a native
+PostgreSQL server using the default port `5432`. The example application configuration already
+targets port `5433`.
+
 ```bash
 cp .env.example .env
+# Set APP_SHOPIFY_CLIENT_ID and APP_SHOPIFY_APP_URL, then generate the local Shopify config.
+uv run python scripts/render_shopify_config.py
 uv sync
 docker compose up -d db
 uv run alembic upgrade head
 uv run uvicorn shopify_app.main:app --reload
 ```
+
+In a second terminal, start the embedded React admin during development:
+
+```bash
+cd admin
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Set the Shopify app URL to the Vite/Shopify CLI development URL. In production, the Docker image
+builds the admin into the FastAPI image; pass `VITE_SHOPIFY_API_KEY` as a Docker build argument.
+`shopify.app.toml` is generated from `.env` and ignored by Git; commit changes to
+`shopify.app.template.toml` when updating scopes, webhooks, or other shared Shopify configuration.
+
+To run the full embedded-app preview with an existing ngrok tunnel, stop any separately running
+Uvicorn process first, then let Shopify CLI manage the FastAPI process and its assigned port:
+
+```bash
+uv run python scripts/render_shopify_config.py
+shopify app dev --tunnel-url=https://your-ngrok-hostname.ngrok-free.app:8000
+```
+
+## Debug the backend in VS Code
+
+Install Microsoft's Python and Python Debugger VS Code extensions before using the checked-in
+launch configurations. Debug mode intentionally runs without Uvicorn auto-reload so breakpoints
+remain attached to one process.
+
+For local debugging, start PostgreSQL and apply migrations:
+
+```bash
+docker compose up -d db
+uv run alembic upgrade head
+```
+
+Open **Run and Debug** in VS Code, select **FastAPI: Debug Local**, and press F5. Set a breakpoint in
+an endpoint and request `http://127.0.0.1:8000/health/live` to trigger it.
+
+For container debugging, build and start the debug-only Compose profile:
+
+```bash
+docker compose --profile debug up --build app-debug
+```
+
+The container waits before starting Uvicorn. Select **FastAPI: Attach Docker** in VS Code and press
+F5 to resume it. Ports 8000 and 5678 bind only to localhost. The standard production Docker target
+does not install `debugpy` or expose its port.
 
 Generate `APP_TOKEN_ENCRYPTION_KEY` before exchanging a token:
 
@@ -30,10 +84,10 @@ development only.
 
 1. Configure scopes in `shopify.app.toml`; Shopify managed installation handles consent.
 2. The App Bridge frontend sends its short-lived session token as `Authorization: Bearer <JWT>`.
-3. Call `POST /api/v1/shopify/token-exchange` once per shop (and again when an expiring token
-   needs renewal). The backend validates the JWT and stores the offline token encrypted.
-4. Call `POST /api/v1/shopify/graphql` with a session token and a GraphQL document. In a real app,
-   prefer narrow, domain-specific backend endpoints rather than exposing a broad proxy to clients.
+3. The admin calls `POST /api/v1/shopify/token-exchange`. The backend validates the JWT, exchanges
+   it for an offline token, stores it encrypted, and records the Shopify installation identity.
+4. The admin calls `GET /api/v1/shopify/me` to load the authenticated shop and onboarding state.
+   Shopify Admin API access remains behind narrow backend services; no public GraphQL proxy exists.
 
 Shopify's REST Admin API is legacy; this starter intentionally uses GraphQL.
 
@@ -68,4 +122,3 @@ uv run mypy
 uv run pytest --cov=shopify_app
 uv lock --check
 ```
-

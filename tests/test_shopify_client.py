@@ -40,3 +40,31 @@ async def test_shopify_client_token_exchange_and_graphql() -> None:
             variables={},
         )
         assert result == {"data": {"shop": {"name": "Example"}}}
+
+
+async def test_token_exchange_retries_transient_shopify_failures() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            return httpx.Response(503)
+        return httpx.Response(
+            200,
+            json={"access_token": "shpat_recovered", "scope": "read_products"},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = ShopifyClient(
+            http_client=http_client,
+            client_id="client-id",
+            client_secret="client-secret",
+            api_version="2026-07",
+        )
+        token = await client.exchange_session_token(
+            shop_domain="example-shop.myshopify.com", session_token="session-jwt"
+        )
+
+    assert attempts == 3
+    assert token.access_token == "shpat_recovered"

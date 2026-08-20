@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any, cast
+from typing import Annotated, cast
 
 import httpx
 import structlog
@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shopify_app.config import Settings, get_settings
 from shopify_app.db import get_db
 from shopify_app.models import ShopSession, WebhookDelivery
-from shopify_app.schemas import GraphQLRequest, ShopConnectionResponse
+from shopify_app.schemas import MerchantResponse, ShopConnectionResponse
 from shopify_app.security import (
     AuthenticationError,
     TokenCipher,
@@ -66,6 +66,9 @@ async def token_exchange(
         token = await client.exchange_session_token(
             shop_domain=shop_domain, session_token=session_token
         )
+        identity = await client.get_installation_identity(
+            shop_domain=shop_domain, access_token=token.access_token
+        )
     except (ShopifyUpstreamError, httpx.HTTPError) as exc:
         logger.warning("shopify_token_exchange_failed", shop_domain=shop_domain)
         raise HTTPException(
@@ -82,12 +85,20 @@ async def token_exchange(
             encrypted_access_token=cipher.encrypt(token.access_token),
             scopes=token.scope,
             expires_at=expires_at,
+            shop_gid=identity.shop_gid,
+            app_installation_gid=identity.app_installation_gid,
         )
         db.add(session)
     else:
+        if session.installation_status != "active":
+            session.installed_at = datetime.now(UTC)
         session.encrypted_access_token = cipher.encrypt(token.access_token)
         session.scopes = token.scope
         session.expires_at = expires_at
+        session.shop_gid = identity.shop_gid
+        session.app_installation_gid = identity.app_installation_gid
+        session.installation_status = "active"
+        session.uninstalled_at = None
     await db.commit()
     return ShopConnectionResponse(
         shop_domain=shop_domain,
@@ -96,29 +107,31 @@ async def token_exchange(
     )
 
 
-@router.post("/graphql")
-async def graphql_proxy(
-    body: GraphQLRequest,
+@router.get("/me", response_model=MerchantResponse)
+async def merchant_identity(
     auth: Annotated[tuple[str, str], Depends(authenticate_session_token)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    client: Annotated[ShopifyClient, Depends(get_shopify_client)],
     cipher: Annotated[TokenCipher, Depends(get_token_cipher)],
-) -> dict[str, Any]:
+) -> MerchantResponse:
     _, shop_domain = auth
     session = await db.get(ShopSession, shop_domain)
-    if session is None:
+    if session is None or session.installation_status != "active":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="token exchange required")
     try:
-        return await client.graphql(
-            shop_domain=shop_domain,
-            access_token=cipher.decrypt(session.encrypted_access_token),
-            query=body.query,
-            variables=body.variables,
-        )
-    except (AuthenticationError, ShopifyUpstreamError, httpx.HTTPError) as exc:
+        _, rotated_token = cipher.decrypt_with_rotation(session.encrypted_access_token)
+    except AuthenticationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="Shopify unavailable"
+            status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
         ) from exc
+    if rotated_token is not None:
+        session.encrypted_access_token = rotated_token
+        await db.commit()
+    return MerchantResponse(
+        shop_domain=shop_domain,
+        connected=True,
+        scopes=[scope for scope in session.scopes.split(",") if scope],
+        onboarding_completed=session.onboarding_completed,
+    )
 
 
 async def read_limited_body(request: Request, limit: int) -> bytes:
@@ -196,7 +209,16 @@ async def receive_webhook(
         delivery.payload = {}
         delivery.status = "processed"
         delivery.processed_at = datetime.now(UTC)
-    elif topic in {"app/uninstalled", "shop/redact"}:
+    elif topic == "app/uninstalled":
+        session = await db.get(ShopSession, shop_domain)
+        if session is not None:
+            session.encrypted_access_token = b""
+            session.installation_status = "uninstalled"
+            session.uninstalled_at = datetime.now(UTC)
+        delivery.payload = {}
+        delivery.status = "processed"
+        delivery.processed_at = datetime.now(UTC)
+    elif topic == "shop/redact":
         session = await db.get(ShopSession, shop_domain)
         if session is not None:
             await db.delete(session)

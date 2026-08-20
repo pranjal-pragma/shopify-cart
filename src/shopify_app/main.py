@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 import structlog
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from shopify_app.api.router import api_router
@@ -18,6 +20,8 @@ from shopify_app.security import TokenCipher
 from shopify_app.shopify_client import ShopifyClient
 
 logger = structlog.get_logger()
+ADMIN_DIST = Path(__file__).resolve().parents[2] / "admin" / "dist"
+README_PATH = Path(__file__).resolve().parents[2] / "README.md"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -38,7 +42,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             client_secret=settings.shopify_client_secret.get_secret_value(),
             api_version=settings.shopify_api_version,
         )
-        app.state.token_cipher = TokenCipher(settings.token_encryption_key.get_secret_value())
+        app.state.token_cipher = TokenCipher(
+            settings.token_encryption_key.get_secret_value(),
+            [key.get_secret_value() for key in settings.token_encryption_previous_keys],
+        )
         logger.info("application_started", environment=settings.env)
         try:
             yield
@@ -60,6 +67,45 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     app.include_router(api_router)
     app.dependency_overrides[get_settings] = lambda: settings
+    app.mount(
+        "/assets",
+        StaticFiles(directory=ADMIN_DIST / "assets", check_dir=False),
+        name="admin-assets",
+    )
+
+    @app.middleware("http")
+    async def embedded_app_security_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        if settings.env != "production" and request.url.path.startswith("/docs"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "img-src 'self' data: https:; "
+                "connect-src 'self'; "
+                "frame-ancestors 'self'"
+            )
+        else:
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' https://cdn.shopify.com; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: https:; "
+                "connect-src 'self' https://*.myshopify.com https://admin.shopify.com; "
+                "frame-ancestors https://admin.shopify.com https://*.myshopify.com"
+            )
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+    @app.get("/", include_in_schema=False)
+    async def admin_index() -> FileResponse:
+        index = ADMIN_DIST / "index.html"
+        if not index.is_file():
+            return FileResponse(  # pragma: no cover - exercised only in packaged deployments
+                README_PATH, media_type="text/plain"
+            )
+        return FileResponse(index)
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
