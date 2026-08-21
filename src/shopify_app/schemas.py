@@ -13,6 +13,8 @@ class TokenExchangeResponse(BaseModel):
     access_token: str
     scope: str = ""
     expires_in: int | None = Field(default=None, ge=1)
+    refresh_token: str | None = None
+    refresh_token_expires_in: int | None = Field(default=None, ge=1)
 
 
 class ShopConnectionResponse(BaseModel):

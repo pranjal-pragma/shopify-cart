@@ -14,8 +14,10 @@ class ShopSession(TimestampMixin, Base):
 
     shop_domain: Mapped[str] = mapped_column(String(255), primary_key=True)
     encrypted_access_token: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    encrypted_refresh_token: Mapped[bytes | None] = mapped_column(LargeBinary)
     scopes: Mapped[str] = mapped_column(String(2048), default="", nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    refresh_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     shop_gid: Mapped[str | None] = mapped_column(String(255))
     app_installation_gid: Mapped[str | None] = mapped_column(String(255))
     installation_status: Mapped[str] = mapped_column(

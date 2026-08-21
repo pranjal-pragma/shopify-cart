@@ -11,6 +11,7 @@ from shopify_app.security import validate_shop_domain
 TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange"  # noqa: S105
 ID_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:id_token"  # noqa: S105
 OFFLINE_TOKEN_TYPE = "urn:shopify:params:oauth:token-type:offline-access-token"  # noqa: S105
+REFRESH_TOKEN_GRANT = "refresh_token"  # noqa: S105
 
 
 class ShopifyUpstreamError(RuntimeError):
@@ -59,10 +60,28 @@ class ShopifyClient:
                 "subject_token": session_token,
                 "subject_token_type": ID_TOKEN_TYPE,
                 "requested_token_type": OFFLINE_TOKEN_TYPE,
+                "expiring": "1",
             },
         )
         if response.is_error:
             raise ShopifyUpstreamError(f"Shopify token exchange failed ({response.status_code})")
+        return TokenExchangeResponse.model_validate(response.json())
+
+    async def refresh_offline_access_token(
+        self, *, shop_domain: str, refresh_token: str
+    ) -> TokenExchangeResponse:
+        shop_domain = validate_shop_domain(shop_domain)
+        response = await self._post_with_retry(
+            f"https://{shop_domain}/admin/oauth/access_token",
+            data={
+                "client_id": self._client_id,
+                "client_secret": self._client_secret,
+                "grant_type": REFRESH_TOKEN_GRANT,
+                "refresh_token": refresh_token,
+            },
+        )
+        if response.is_error:
+            raise ShopifyUpstreamError(f"Shopify token refresh failed ({response.status_code})")
         return TokenExchangeResponse.model_validate(response.json())
 
     async def graphql(

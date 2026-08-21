@@ -35,7 +35,13 @@ async def test_token_exchange_then_me(
     ) -> TokenExchangeResponse:
         assert shop_domain == "example-shop.myshopify.com"
         assert session_token
-        return TokenExchangeResponse(access_token="shpat_test", scope="read_products")
+        return TokenExchangeResponse(
+            access_token="shpat_test",
+            scope="read_products",
+            expires_in=3600,
+            refresh_token="shprt_test",
+            refresh_token_expires_in=7_776_000,
+        )
 
     async def fake_identity(
         self: ShopifyClient, *, shop_domain: str, access_token: str
@@ -56,7 +62,7 @@ async def test_token_exchange_then_me(
     assert exchange_response.json() == {
         "shop_domain": "example-shop.myshopify.com",
         "scopes": ["read_products"],
-        "expires_in": None,
+        "expires_in": 3600,
     }
 
     me_response = await client.get("/api/v1/shopify/me", headers=headers)
@@ -75,7 +81,13 @@ async def test_me_is_isolated_to_authenticated_shop(
     async def fake_exchange(
         self: ShopifyClient, *, shop_domain: str, session_token: str
     ) -> TokenExchangeResponse:
-        return TokenExchangeResponse(access_token=f"token-{shop_domain}", scope="read_products")
+        return TokenExchangeResponse(
+            access_token=f"token-{shop_domain}",
+            scope="read_products",
+            expires_in=3600,
+            refresh_token=f"refresh-{shop_domain}",
+            refresh_token_expires_in=7_776_000,
+        )
 
     async def fake_identity(
         self: ShopifyClient, *, shop_domain: str, access_token: str
