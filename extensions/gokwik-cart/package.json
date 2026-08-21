@@ -1,0 +1,11 @@
+{
+  "name": "gokwik-cart-theme-extension",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "esbuild src/gokwik-cart.js --bundle --minify --legal-comments=none --outfile=assets/gokwik-cart.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

@@ -4,44 +4,159 @@ A production-oriented Python backend for an embedded Shopify app. It uses FastAP
 PostgreSQL, Shopify managed installation/session tokens, token exchange, GraphQL Admin API,
 verified and deduplicated webhooks, encrypted access tokens, structured logs, and health probes.
 
-## Start locally
+## Run the project locally
 
-Prerequisites: Python 3.12/3.13, `uv`, Docker, and Shopify CLI.
+### Prerequisites
 
-The Docker PostgreSQL service is exposed on `localhost:5433` so it does not conflict with a native
-PostgreSQL server using the default port `5432`. The example application configuration already
-targets port `5433`.
+Install the following before continuing:
+
+- Python 3.12 or 3.13
+- [`uv`](https://docs.astral.sh/uv/)
+- Docker with Docker Compose
+- Node.js 22 and npm
+- [Shopify CLI](https://shopify.dev/docs/api/shopify-cli)
+- A Shopify app and a development store
+
+The local PostgreSQL container is exposed on `localhost:5433`, avoiding a conflict with a native
+PostgreSQL instance on the default port `5432`.
+
+### 1. Install dependencies
+
+From the repository root:
+
+```bash
+uv sync
+npm --prefix admin ci
+```
+
+### 2. Configure environment variables
+
+Create the backend and admin environment files:
 
 ```bash
 cp .env.example .env
-# Set APP_SHOPIFY_CLIENT_ID and APP_SHOPIFY_APP_URL, then generate the local Shopify config.
+cp admin/.env.example admin/.env
+```
+
+Generate an encryption key:
+
+```bash
+uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Copy the generated value into `APP_TOKEN_ENCRYPTION_KEY` in `.env`, then configure these values:
+
+```dotenv
+APP_SHOPIFY_APP_NAME=Pragma Cart
+APP_SHOPIFY_APP_URL=https://your-tunnel-hostname.example
+APP_SHOPIFY_CLIENT_ID=your-dev-dashboard-client-id
+APP_SHOPIFY_CLIENT_SECRET=your-dev-dashboard-client-secret
+APP_TOKEN_ENCRYPTION_KEY=your-generated-fernet-key
+```
+
+Set the same client ID in `admin/.env`:
+
+```dotenv
+VITE_SHOPIFY_API_KEY=your-dev-dashboard-client-id
+```
+
+`APP_SHOPIFY_APP_URL` must be an absolute HTTPS URL. When using a custom ngrok tunnel, use its
+public hostname here. Shopify CLI can update the development URL automatically when it manages the
+tunnel.
+
+### 3. Start PostgreSQL and apply migrations
+
+```bash
+docker compose up -d db
+docker compose ps
+uv run alembic upgrade head
+```
+
+The database is ready when `docker compose ps` reports the `db` service as healthy.
+
+### 4. Generate the Shopify configuration
+
+```bash
 uv run python scripts/render_shopify_config.py
-uv sync
+```
+
+This creates `shopify.app.toml` from `.env` and `shopify.app.template.toml`. The generated file is
+ignored by Git. Change scopes, webhook subscriptions, or shared Shopify settings in
+`shopify.app.template.toml`, then rerun the command.
+
+### 5. Build the admin frontend
+
+```bash
+npm --prefix admin run build
+```
+
+FastAPI serves the resulting `admin/dist` files at `/`. Rebuild the admin after frontend changes
+when using the Shopify CLI workflow below.
+
+### 6. Run the embedded app with Shopify CLI (recommended)
+
+Let Shopify CLI start FastAPI using the command in `shopify.web.toml`:
+
+```bash
+shopify app dev --store=your-development-store.myshopify.com
+```
+
+Follow the URL printed by Shopify CLI to install or open the app in Shopify Admin. Do not start a
+second Uvicorn process for this workflow; Shopify CLI supplies the port and manages the backend
+process.
+
+To use an existing ngrok tunnel instead of Shopify CLI's tunnel, start ngrok first and run:
+
+```bash
+shopify app dev \
+  --store=your-development-store.myshopify.com \
+  --tunnel-url=https://your-ngrok-hostname.ngrok-free.app:8000
+```
+
+The port after the tunnel hostname is the local app port Shopify CLI should forward to.
+
+### Backend-only development
+
+To run FastAPI without Shopify CLI:
+
+```bash
 docker compose up -d db
 uv run alembic upgrade head
-uv run uvicorn shopify_app.main:app --reload
+uv run uvicorn shopify_app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-In a second terminal, start the embedded React admin during development:
+Useful local endpoints:
+
+- API documentation: `http://127.0.0.1:8000/docs`
+- Liveness probe: `http://127.0.0.1:8000/health/live`
+- Readiness probe: `http://127.0.0.1:8000/health/ready`
+
+Shopify authentication and App Bridge session tokens require the embedded Shopify Admin preview.
+
+For Vite hot reload, keep the backend running and start the admin separately in another terminal:
 
 ```bash
-cd admin
-cp .env.example .env
-npm install
-npm run dev
+npm --prefix admin run dev
 ```
 
-Set the Shopify app URL to the Vite/Shopify CLI development URL. In production, the Docker image
-builds the admin into the FastAPI image; pass `VITE_SHOPIFY_API_KEY` as a Docker build argument.
-`shopify.app.toml` is generated from `.env` and ignored by Git; commit changes to
-`shopify.app.template.toml` when updating scopes, webhooks, or other shared Shopify configuration.
+Vite runs on `http://127.0.0.1:5173` and proxies `/api` requests to FastAPI on port `8000`.
 
-To run the full embedded-app preview with an existing ngrok tunnel, stop any separately running
-Uvicorn process first, then let Shopify CLI manage the FastAPI process and its assigned port:
+### Daily startup
+
+After the first-time setup, the usual startup sequence is:
 
 ```bash
+docker compose up -d db
+uv run alembic upgrade head
 uv run python scripts/render_shopify_config.py
-shopify app dev --tunnel-url=https://your-ngrok-hostname.ngrok-free.app:8000
+npm --prefix admin run build
+shopify app dev --store=your-development-store.myshopify.com
+```
+
+Stop the database when finished:
+
+```bash
+docker compose down
 ```
 
 ## Debug the backend in VS Code
@@ -69,16 +184,6 @@ docker compose --profile debug up --build app-debug
 The container waits before starting Uvicorn. Select **FastAPI: Attach Docker** in VS Code and press
 F5 to resume it. Ports 8000 and 5678 bind only to localhost. The standard production Docker target
 does not install `debugpy` or expose its port.
-
-Generate `APP_TOKEN_ENCRYPTION_KEY` before exchanging a token:
-
-```bash
-uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-
-Then update `.env` and `shopify.app.toml` from the Shopify Dev Dashboard, and deploy the app
-configuration with `shopify app deploy`. The OpenAPI UI is at `http://localhost:8000/docs` in
-development only.
 
 ## Embedded app flow
 
