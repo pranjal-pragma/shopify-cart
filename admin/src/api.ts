@@ -87,6 +87,8 @@ export interface CartAppearanceConfiguration {
   scarcity_timer_text_color: string;
   scarcity_timer_expiry_action: 'restart' | 'remove';
   scarcity_timer_started_at: string | null;
+  scarcity_sale_starts_at: string | null;
+  scarcity_sale_ends_at: string | null;
   allow_free_item_quantity_changes: boolean;
   block_cart_page_redirection: boolean;
   disable_checkout_for_upsell_only: boolean;

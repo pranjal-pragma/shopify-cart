@@ -13,11 +13,16 @@
       + (configuration.scarcity_timer_minutes ?? 10) * 60
       + (configuration.scarcity_timer_seconds || 0)
     ) * 1000);
-    const startedAt = Date.parse(configuration.scarcity_timer_started_at || '') || Date.now();
+    const legacySaleStart = Date.parse(configuration.scarcity_timer_started_at || '');
+    const configuredSaleStart = Date.parse(configuration.scarcity_sale_starts_at || '');
+    const configuredSaleEnd = Date.parse(configuration.scarcity_sale_ends_at || '');
+    const saleStartsAt = Number.isFinite(configuredSaleStart) ? configuredSaleStart : legacySaleStart;
+    const saleEndsAt = Number.isFinite(configuredSaleEnd) ? configuredSaleEnd : legacySaleStart + duration;
     const signature = JSON.stringify([
       configuration.scarcity_timer_type || 'urgency',
       duration,
-      configuration.scarcity_timer_started_at || '',
+      configuration.scarcity_sale_starts_at || '',
+      configuration.scarcity_sale_ends_at || '',
     ]);
     let interval = null;
     let fallbackExpiry = null;
@@ -46,18 +51,13 @@
       }
     };
 
-    const nextSalesExpiry = () => {
-      if (configuration.scarcity_timer_expiry_action === 'remove') return startedAt + duration;
-      const elapsed = Math.max(0, Date.now() - startedAt);
-      return startedAt + (Math.floor(elapsed / duration) + 1) * duration;
-    };
-
     const formatTime = (remaining) => {
       const totalSeconds = Math.max(0, Math.ceil(remaining / 1000));
-      const showDays = configuration.scarcity_show_days === true;
-      const showHours = configuration.scarcity_show_hours === true;
-      const showMinutes = configuration.scarcity_show_minutes !== false;
-      const showSeconds = configuration.scarcity_show_seconds !== false;
+      const isSales = configuration.scarcity_timer_type === 'sales';
+      const showDays = isSales ? totalSeconds >= 86_400 : configuration.scarcity_show_days === true;
+      const showHours = isSales ? showDays || totalSeconds >= 3_600 : configuration.scarcity_show_hours === true;
+      const showMinutes = isSales || configuration.scarcity_show_minutes !== false;
+      const showSeconds = isSales || configuration.scarcity_show_seconds !== false;
       const days = Math.floor(totalSeconds / 86_400);
       const hours = Math.floor((showDays ? totalSeconds % 86_400 : totalSeconds) / 3_600);
       const minutes = Math.floor((showDays || showHours ? totalSeconds % 3_600 : totalSeconds) / 60);
@@ -88,13 +88,20 @@
     const update = (cart) => {
       window.clearInterval(interval);
       scarcity.hidden = !configuration.scarcity_timer_enabled || cart.item_count === 0;
+      if (configuration.scarcity_timer_type === 'sales') {
+        scarcity.hidden = scarcity.hidden
+          || !Number.isFinite(saleStartsAt)
+          || !Number.isFinite(saleEndsAt)
+          || Date.now() < saleStartsAt
+          || Date.now() >= saleEndsAt;
+      }
       if (scarcity.hidden) {
         if (cart.item_count === 0 && configuration.scarcity_timer_type !== 'sales') writeExpiry(null);
         return;
       }
 
       applyStyle();
-      let expiresAt = configuration.scarcity_timer_type === 'sales' ? nextSalesExpiry() : readExpiry();
+      let expiresAt = configuration.scarcity_timer_type === 'sales' ? saleEndsAt : readExpiry();
       if (!expiresAt) {
         expiresAt = Date.now() + duration;
         writeExpiry(expiresAt);
@@ -103,11 +110,9 @@
         const remaining = Math.max(0, expiresAt - Date.now());
         timeElement.textContent = formatTime(remaining);
         if (remaining > 0) return;
-        if (configuration.scarcity_timer_expiry_action === 'restart') {
-          expiresAt = configuration.scarcity_timer_type === 'sales'
-            ? nextSalesExpiry()
-            : Date.now() + duration;
-          if (configuration.scarcity_timer_type !== 'sales') writeExpiry(expiresAt);
+        if (configuration.scarcity_timer_type !== 'sales' && configuration.scarcity_timer_expiry_action === 'restart') {
+          expiresAt = Date.now() + duration;
+          writeExpiry(expiresAt);
           timeElement.textContent = formatTime(expiresAt - Date.now());
           return;
         }

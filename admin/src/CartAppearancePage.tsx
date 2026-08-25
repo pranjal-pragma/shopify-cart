@@ -46,6 +46,23 @@ const newCondition = (): BannerCondition => ({
   value: '',
 });
 
+const toDateTimeLocal = (value: string | null) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+};
+
+const fromDateTimeLocal = (value: string) => value ? new Date(value).toISOString() : null;
+
+const newSalePeriod = () => {
+  const startsAt = new Date();
+  startsAt.setSeconds(0, 0);
+  const endsAt = new Date(startsAt.getTime() + 24 * 60 * 60 * 1000);
+  return {startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString()};
+};
+
 export const defaultAppearance: CartAppearanceConfiguration = {
   font_source: 'gokwik',
   theme_color: '#F10A0A',
@@ -110,6 +127,8 @@ export const defaultAppearance: CartAppearanceConfiguration = {
   scarcity_timer_text_color: '#7B5312',
   scarcity_timer_expiry_action: 'restart',
   scarcity_timer_started_at: null,
+  scarcity_sale_starts_at: null,
+  scarcity_sale_ends_at: null,
   allow_free_item_quantity_changes: false,
   block_cart_page_redirection: true,
   disable_checkout_for_upsell_only: false,
@@ -224,7 +243,7 @@ function RichTextField({label, value, onChange}: {label: string; value: RichText
   );
 }
 
-function Field({label, value, onChange, placeholder, type = 'text'}: {label: string; value: string | number; onChange: (value: string) => void; placeholder?: string; type?: 'text' | 'number' | 'url'}) {
+function Field({label, value, onChange, placeholder, type = 'text'}: {label: string; value: string | number; onChange: (value: string) => void; placeholder?: string; type?: 'text' | 'number' | 'url' | 'datetime-local'}) {
   return (
     <label className="field">
       <span>{label}</span>
@@ -277,6 +296,14 @@ function CartSettingsEditor({configuration, update, previewMode}: {configuration
     {label: 'Minute', valueKey: 'scarcity_timer_minutes', showKey: 'scarcity_show_minutes', max: 59},
     {label: 'Second', valueKey: 'scarcity_timer_seconds', showKey: 'scarcity_show_seconds', max: 59},
   ] as const;
+  const selectTimerType = (type: CartAppearanceConfiguration['scarcity_timer_type']) => {
+    update('scarcity_timer_type', type);
+    if (type === 'sales' && (!configuration.scarcity_sale_starts_at || !configuration.scarcity_sale_ends_at)) {
+      const period = newSalePeriod();
+      update('scarcity_sale_starts_at', period.startsAt);
+      update('scarcity_sale_ends_at', period.endsAt);
+    }
+  };
   const pickVariant = async () => {
     if (!window.shopify?.resourcePicker) return;
     const selected = await window.shopify.resourcePicker({
@@ -315,11 +342,11 @@ function CartSettingsEditor({configuration, update, previewMode}: {configuration
     <EditorSection title="Scarcity timer banner" description="Create urgency with a cart reservation or store-wide sale countdown.">
       <Toggle checked={configuration.scarcity_timer_enabled} label="Enable" onChange={(value) => update('scarcity_timer_enabled', value)} />
       {configuration.scarcity_timer_enabled && <div className="nested-settings scarcity-settings">
-        <div className="field"><span>Timer type</span><div className="choice-list choice-list--two" role="radiogroup" aria-label="Scarcity timer type">{[{value: 'urgency', label: 'Urgency timer', description: 'Starts for each shopper when their cart contains products.'}, {value: 'sales', label: 'Sales countdown timer', description: 'Uses one store-wide countdown anchored when you save.'}].map((option) => <label key={option.value}><input type="radio" name="scarcity-timer-type" checked={configuration.scarcity_timer_type === option.value} onChange={() => update('scarcity_timer_type', option.value as CartAppearanceConfiguration['scarcity_timer_type'])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}</div></div>
-        <div className="field"><span>Timer duration</span><div className="scarcity-duration-grid">{durationUnits.map((unit) => <label className="scarcity-duration-unit" key={unit.valueKey}><span><input type="checkbox" checked={configuration[unit.showKey]} onChange={(event) => update(unit.showKey, event.target.checked)} />{unit.label}</span><input type="number" min="0" max={unit.max} disabled={!configuration[unit.showKey]} value={configuration[unit.valueKey]} onChange={(event) => update(unit.valueKey, Math.min(unit.max, Math.max(0, Number(event.target.value))))} /></label>)}</div></div>
+        <div className="field"><span>Timer type</span><div className="choice-list choice-list--two" role="radiogroup" aria-label="Scarcity timer type">{[{value: 'urgency', label: 'Urgency timer', description: 'Starts for each shopper when their cart contains products.'}, {value: 'sales', label: 'Sales countdown timer', description: 'Counts down to the end of a fixed sale period.'}].map((option) => <label key={option.value}><input type="radio" name="scarcity-timer-type" checked={configuration.scarcity_timer_type === option.value} onChange={() => selectTimerType(option.value as CartAppearanceConfiguration['scarcity_timer_type'])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}</div></div>
+        {configuration.scarcity_timer_type === 'urgency' ? <div className="field"><span>Timer duration</span><div className="scarcity-duration-grid">{durationUnits.map((unit) => <label className="scarcity-duration-unit" key={unit.valueKey}><span><input type="checkbox" checked={configuration[unit.showKey]} onChange={(event) => update(unit.showKey, event.target.checked)} />{unit.label}</span><input type="number" min="0" max={unit.max} disabled={!configuration[unit.showKey]} value={configuration[unit.valueKey]} onChange={(event) => update(unit.valueKey, Math.min(unit.max, Math.max(0, Number(event.target.value))))} /></label>)}</div></div> : <div className="field"><span>Sale period</span><div className="field-grid"><Field label="Start date & time" type="datetime-local" value={toDateTimeLocal(configuration.scarcity_sale_starts_at)} onChange={(value) => update('scarcity_sale_starts_at', fromDateTimeLocal(value))} /><Field label="End date & time" type="datetime-local" value={toDateTimeLocal(configuration.scarcity_sale_ends_at)} onChange={(value) => update('scarcity_sale_ends_at', fromDateTimeLocal(value))} /></div></div>}
         <RichTextField label="Title to display" value={configuration.scarcity_timer_title} onChange={(value) => update('scarcity_timer_title', value)} />
         <div className="field-grid"><ColorField label="Background color" value={configuration.scarcity_timer_background} onChange={(value) => update('scarcity_timer_background', value)} /><ColorField label="Text color" value={configuration.scarcity_timer_text_color} onChange={(value) => update('scarcity_timer_text_color', value)} /></div>
-        <div className="field"><span>Action after timer expires</span><div className="choice-list choice-list--two" role="radiogroup" aria-label="Action after timer expires">{[{value: 'restart', label: 'Restart timer', description: 'Begin the same countdown again.'}, {value: 'remove', label: 'Remove timer', description: 'Hide the banner when it reaches zero.'}].map((option) => <label key={option.value}><input type="radio" name="scarcity-expiry-action" checked={configuration.scarcity_timer_expiry_action === option.value} onChange={() => update('scarcity_timer_expiry_action', option.value as CartAppearanceConfiguration['scarcity_timer_expiry_action'])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}</div></div>
+        {configuration.scarcity_timer_type === 'urgency' && <div className="field"><span>Action after timer expires</span><div className="choice-list choice-list--two" role="radiogroup" aria-label="Action after timer expires">{[{value: 'restart', label: 'Restart timer', description: 'Begin the same countdown again.'}, {value: 'remove', label: 'Remove timer', description: 'Hide the banner when it reaches zero.'}].map((option) => <label key={option.value}><input type="radio" name="scarcity-expiry-action" checked={configuration.scarcity_timer_expiry_action === option.value} onChange={() => update('scarcity_timer_expiry_action', option.value as CartAppearanceConfiguration['scarcity_timer_expiry_action'])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}</div></div>}
       </div>}
     </EditorSection>
 
@@ -368,6 +395,22 @@ function conditionMatches(condition: BannerCondition, itemCount: number, total: 
 }
 
 function formatScarcityDuration(configuration: CartAppearanceConfiguration) {
+  if (configuration.scarcity_timer_type === 'sales') {
+    const startsAt = Date.parse(configuration.scarcity_sale_starts_at || '');
+    const endsAt = Date.parse(configuration.scarcity_sale_ends_at || '');
+    const remaining = Math.max(0, endsAt - Math.max(Date.now(), startsAt || Date.now()));
+    const totalSeconds = Math.ceil(remaining / 1000);
+    const days = Math.floor(totalSeconds / 86_400);
+    const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+    const minutes = Math.floor((totalSeconds % 3_600) / 60);
+    const seconds = totalSeconds % 60;
+    return [
+      days > 0 && `${String(days).padStart(2, '0')}d`,
+      (days > 0 || hours > 0) && `${String(hours).padStart(2, '0')}h`,
+      `${String(minutes).padStart(2, '0')}m`,
+      `${String(seconds).padStart(2, '0')}s`,
+    ].filter(Boolean).join(' ');
+  }
   const parts = [
     configuration.scarcity_show_days && `${String(configuration.scarcity_timer_days).padStart(2, '0')}d`,
     configuration.scarcity_show_hours && `${String(configuration.scarcity_timer_hours).padStart(2, '0')}h`,
@@ -560,10 +603,17 @@ function validate(configuration: CartAppearanceConfiguration): string | null {
   }
   if (configuration.custom_cart_drawer_selectors.some((selector) => ['*', 'html', 'body', ':root'].includes(selector.toLowerCase()))) return 'Custom drawer selectors cannot target the entire document.';
   if (configuration.scarcity_timer_enabled) {
-    const duration = configuration.scarcity_timer_days * 86400 + configuration.scarcity_timer_hours * 3600 + configuration.scarcity_timer_minutes * 60 + configuration.scarcity_timer_seconds;
-    if (duration <= 0) return 'Scarcity timer duration must be greater than zero.';
-    if (![configuration.scarcity_show_days, configuration.scarcity_show_hours, configuration.scarcity_show_minutes, configuration.scarcity_show_seconds].some(Boolean)) return 'Select at least one scarcity timer display unit.';
     if (!configuration.scarcity_timer_title.text.trim()) return 'Scarcity timer title cannot be empty.';
+    if (configuration.scarcity_timer_type === 'sales') {
+      const startsAt = Date.parse(configuration.scarcity_sale_starts_at || '');
+      const endsAt = Date.parse(configuration.scarcity_sale_ends_at || '');
+      if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt)) return 'Set the sales countdown start and end times.';
+      if (endsAt <= startsAt) return 'Sales countdown end time must be after its start time.';
+    } else {
+      const duration = configuration.scarcity_timer_days * 86400 + configuration.scarcity_timer_hours * 3600 + configuration.scarcity_timer_minutes * 60 + configuration.scarcity_timer_seconds;
+      if (duration <= 0) return 'Scarcity timer duration must be greater than zero.';
+      if (![configuration.scarcity_show_days, configuration.scarcity_show_hours, configuration.scarcity_show_minutes, configuration.scarcity_show_seconds].some(Boolean)) return 'Select at least one scarcity timer display unit.';
+    }
   }
   if (configuration.terms_checkbox_enabled && !configuration.terms_checkbox_text.trim()) return 'Terms checkbox text cannot be empty.';
   if (configuration.terms_checkbox_enabled && !configuration.terms_checkbox_url.startsWith('/') && !/^https?:\/\//i.test(configuration.terms_checkbox_url)) return 'The terms link must be a store path or an HTTP(S) URL.';

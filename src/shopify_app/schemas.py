@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
@@ -168,6 +168,8 @@ class CartAppearanceConfiguration(BaseModel):
     scarcity_timer_text_color: HexColor = "#7B5312"
     scarcity_timer_expiry_action: Literal["restart", "remove"] = "restart"
     scarcity_timer_started_at: datetime | None = None
+    scarcity_sale_starts_at: datetime | None = None
+    scarcity_sale_ends_at: datetime | None = None
     allow_free_item_quantity_changes: bool = False
     block_cart_page_redirection: bool = True
     disable_checkout_for_upsell_only: bool = False
@@ -189,20 +191,38 @@ class CartAppearanceConfiguration(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def migrate_legacy_scarcity_timer(cls, value: object) -> object:
-        if not isinstance(value, dict) or "scarcity_timer_text" not in value:
+        if not isinstance(value, dict):
             return value
         migrated = dict(value)
-        legacy_text = str(migrated.pop("scarcity_timer_text") or "").replace(
-            "{time}", ""
-        ).strip()
-        migrated.setdefault(
-            "scarcity_timer_title",
-            {
-                "text": legacy_text or "Your cart is reserved for",
-                "bold": True,
-                "font_size": 12,
-            },
-        )
+        if "scarcity_timer_text" in migrated:
+            legacy_text = str(migrated.pop("scarcity_timer_text") or "").replace(
+                "{time}", ""
+            ).strip()
+            migrated.setdefault(
+                "scarcity_timer_title",
+                {
+                    "text": legacy_text or "Your cart is reserved for",
+                    "bold": True,
+                    "font_size": 12,
+                },
+            )
+        if (
+            migrated.get("scarcity_timer_type") == "sales"
+            and not migrated.get("scarcity_sale_starts_at")
+            and not migrated.get("scarcity_sale_ends_at")
+            and migrated.get("scarcity_timer_started_at")
+        ):
+            started_at = migrated["scarcity_timer_started_at"]
+            if isinstance(started_at, str):
+                started_at = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+            duration = timedelta(
+                days=int(migrated.get("scarcity_timer_days", 0) or 0),
+                hours=int(migrated.get("scarcity_timer_hours", 0) or 0),
+                minutes=int(migrated.get("scarcity_timer_minutes", 0) or 0),
+                seconds=int(migrated.get("scarcity_timer_seconds", 0) or 0),
+            )
+            migrated["scarcity_sale_starts_at"] = started_at
+            migrated["scarcity_sale_ends_at"] = started_at + duration
         return migrated
 
     @model_validator(mode="after")
@@ -228,25 +248,31 @@ class CartAppearanceConfiguration(BaseModel):
         if self.product_quantity_limit_enabled and self.quantity_limit_variant_id is None:
             raise ValueError("select a product variant before enabling its quantity limit")
         if self.scarcity_timer_enabled:
-            duration = (
-                self.scarcity_timer_days * 86_400
-                + self.scarcity_timer_hours * 3_600
-                + self.scarcity_timer_minutes * 60
-                + self.scarcity_timer_seconds
-            )
-            if duration == 0:
-                raise ValueError("scarcity timer duration must be greater than zero")
-            if not any(
-                (
-                    self.scarcity_show_days,
-                    self.scarcity_show_hours,
-                    self.scarcity_show_minutes,
-                    self.scarcity_show_seconds,
-                )
-            ):
-                raise ValueError("select at least one scarcity timer display unit")
             if not self.scarcity_timer_title.text.strip():
                 raise ValueError("scarcity timer title cannot be empty")
+            if self.scarcity_timer_type == "sales":
+                if self.scarcity_sale_starts_at is None or self.scarcity_sale_ends_at is None:
+                    raise ValueError("sales countdown start and end times are required")
+                if self.scarcity_sale_ends_at <= self.scarcity_sale_starts_at:
+                    raise ValueError("sales countdown end time must be after its start time")
+            else:
+                duration = (
+                    self.scarcity_timer_days * 86_400
+                    + self.scarcity_timer_hours * 3_600
+                    + self.scarcity_timer_minutes * 60
+                    + self.scarcity_timer_seconds
+                )
+                if duration == 0:
+                    raise ValueError("scarcity timer duration must be greater than zero")
+                if not any(
+                    (
+                        self.scarcity_show_days,
+                        self.scarcity_show_hours,
+                        self.scarcity_show_minutes,
+                        self.scarcity_show_seconds,
+                    )
+                ):
+                    raise ValueError("select at least one scarcity timer display unit")
         return self
 
 
