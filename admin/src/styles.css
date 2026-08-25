@@ -853,6 +853,19 @@ p {
   font-size: 11px;
 }
 
+.confirmation-settings {
+  gap: 14px;
+}
+
+.confirmation-sample {
+  align-self: flex-start;
+  border-radius: 6px;
+  box-shadow: 0 8px 22px rgb(18 19 22 / 16%);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 11px 15px;
+}
+
 .selector-list {
   border-bottom: 1px solid #e7e7e9;
   display: flex;

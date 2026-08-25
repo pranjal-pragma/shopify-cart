@@ -145,6 +145,8 @@ async def test_cart_appearance_defaults_and_persists_per_shop(
     assert configuration["theme_color"] == "#F10A0A"
     assert configuration["advanced_conditions"] is False
     assert configuration["add_to_cart_behavior"] == "nothing"
+    assert configuration["confirmation_background"] == "#202124"
+    assert configuration["confirmation_text_color"] == "#FFFFFF"
     assert configuration["block_cart_page_redirection"] is True
     assert configuration["variant_selection_enabled"] is True
     assert configuration["updated_at"] is None
@@ -153,6 +155,8 @@ async def test_cart_appearance_defaults_and_persists_per_shop(
     configuration["theme_color"] = "#146B4A"
     configuration["empty_title"] = "Nothing here yet"
     configuration["add_to_cart_behavior"] = "confirmation"
+    configuration["confirmation_background"] = "#146B4A"
+    configuration["confirmation_text_color"] = "#FFF9E8"
     configuration["custom_cart_icon_selectors"] = [".header-cart"]
     saved_response = await client.put(
         "/api/v1/shopify/appearance", headers=first_headers, json=configuration
@@ -164,6 +168,8 @@ async def test_cart_appearance_defaults_and_persists_per_shop(
     reloaded = await client.get("/api/v1/shopify/appearance", headers=first_headers)
     assert reloaded.json()["empty_title"] == "Nothing here yet"
     assert reloaded.json()["add_to_cart_behavior"] == "confirmation"
+    assert reloaded.json()["confirmation_background"] == "#146B4A"
+    assert reloaded.json()["confirmation_text_color"] == "#FFF9E8"
     assert reloaded.json()["custom_cart_icon_selectors"] == [".header-cart"]
 
     second_headers = {

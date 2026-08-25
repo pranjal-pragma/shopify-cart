@@ -66,6 +66,8 @@ export interface CartAppearanceConfiguration {
   footer_alignment: 'left' | 'center' | 'right';
   custom_script: string;
   add_to_cart_behavior: 'open_cart' | 'confirmation' | 'nothing';
+  confirmation_background: string;
+  confirmation_text_color: string;
   use_theme_add_to_cart_handling: boolean;
   custom_cart_icon_selectors: string[];
   custom_cart_drawer_selectors: string[];

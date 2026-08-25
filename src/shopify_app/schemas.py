@@ -142,6 +142,8 @@ class CartAppearanceConfiguration(BaseModel):
     footer_alignment: Literal["left", "center", "right"] = "left"
     custom_script: str = Field(default="", max_length=20_000)
     add_to_cart_behavior: Literal["open_cart", "confirmation", "nothing"] = "nothing"
+    confirmation_background: HexColor = "#202124"
+    confirmation_text_color: HexColor = "#FFFFFF"
     use_theme_add_to_cart_handling: bool = False
     custom_cart_icon_selectors: list[CssSelector] = Field(default_factory=list, max_length=12)
     custom_cart_drawer_selectors: list[CssSelector] = Field(default_factory=list, max_length=12)

@@ -102,6 +102,8 @@
 
     const showConfirmation = () => {
       window.clearTimeout(confirmationTimer);
+      confirmation.style.backgroundColor = configuration.confirmation_background || '#202124';
+      confirmation.style.color = configuration.confirmation_text_color || '#FFFFFF';
       confirmation.hidden = false;
       confirmationTimer = window.setTimeout(() => { confirmation.hidden = true; }, 2600);
     };
@@ -116,7 +118,7 @@
       }
     };
 
-    if (!configuration.use_theme_add_to_cart_handling) {
+    if (!configuration.use_theme_add_to_cart_handling && configuration.add_to_cart_behavior !== 'nothing') {
       document.addEventListener('submit', (event) => {
         const form = event.target;
         if (!(form instanceof HTMLFormElement) || !isCartPath(form.action, cartAddUrl)) return;

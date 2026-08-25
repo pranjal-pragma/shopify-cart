@@ -89,6 +89,8 @@ export const defaultAppearance: CartAppearanceConfiguration = {
   footer_alignment: 'left',
   custom_script: '',
   add_to_cart_behavior: 'nothing',
+  confirmation_background: '#202124',
+  confirmation_text_color: '#FFFFFF',
   use_theme_add_to_cart_handling: false,
   custom_cart_icon_selectors: [],
   custom_cart_drawer_selectors: [],
@@ -274,9 +276,13 @@ function CartSettingsEditor({configuration, update, previewMode}: {configuration
   return <>
     <EditorSection title="Add-to-cart behavior" description="Choose what shoppers see immediately after an item is added.">
       <div className="choice-list" role="radiogroup" aria-label="Add-to-cart behavior">
-        {[{value: 'open_cart', label: 'Open side cart', description: 'Open the drawer and refresh its contents.'}, {value: 'confirmation', label: 'Show confirmation message', description: 'Keep the shopper on the page and show a compact confirmation.'}, {value: 'nothing', label: 'Do nothing', description: 'Leave the current storefront state unchanged.'}].map((option) => <label key={option.value}><input type="radio" name="add-to-cart-behavior" checked={configuration.add_to_cart_behavior === option.value} onChange={() => update('add_to_cart_behavior', option.value as CartAppearanceConfiguration['add_to_cart_behavior'])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}
+        {[{value: 'open_cart', label: 'Open side cart', description: 'Open the drawer and refresh its contents.'}, {value: 'confirmation', label: 'Show confirmation message', description: 'Keep the shopper on the page and show a compact confirmation.'}, {value: 'nothing', label: 'Do nothing', description: 'Do not observe or respond when a product is added.'}].map((option) => <label key={option.value}><input type="radio" name="add-to-cart-behavior" checked={configuration.add_to_cart_behavior === option.value} onChange={() => update('add_to_cart_behavior', option.value as CartAppearanceConfiguration['add_to_cart_behavior'])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}
       </div>
-      <Toggle checked={configuration.use_theme_add_to_cart_handling} label="Use your own add-to-cart handling" description="Leave add-to-cart responses entirely to the storefront theme." onChange={(value) => update('use_theme_add_to_cart_handling', value)} />
+      {configuration.add_to_cart_behavior === 'confirmation' && <div className="nested-settings confirmation-settings">
+        <div className="field-grid"><ColorField label="Popup background" value={configuration.confirmation_background} onChange={(value) => update('confirmation_background', value)} /><ColorField label="Popup text" value={configuration.confirmation_text_color} onChange={(value) => update('confirmation_text_color', value)} /></div>
+        <div className="confirmation-sample" style={{backgroundColor: configuration.confirmation_background, color: configuration.confirmation_text_color}}>Item added to your cart</div>
+      </div>}
+      <Toggle checked={configuration.use_theme_add_to_cart_handling} label="Use your own add-to-cart handling" description="Stop GoKwik from watching add-to-cart requests so your theme or custom script owns the response." onChange={(value) => update('use_theme_add_to_cart_handling', value)} />
     </EditorSection>
 
     <EditorSection title="Custom selectors" description="Add selectors only when your theme elements are not detected automatically.">
@@ -503,7 +509,7 @@ function EditorSection({title, description, children}: {title: string; descripti
 }
 
 function validate(configuration: CartAppearanceConfiguration): string | null {
-  const colors = [configuration.theme_color, configuration.announcement_background, configuration.announcement_text_color, configuration.checkout_background, configuration.checkout_text_color, configuration.footer_text_color];
+  const colors = [configuration.theme_color, configuration.announcement_background, configuration.announcement_text_color, configuration.checkout_background, configuration.checkout_text_color, configuration.footer_text_color, configuration.confirmation_background, configuration.confirmation_text_color];
   if (colors.some((color) => !/^#[0-9A-F]{6}$/i.test(color))) return 'Enter valid six-digit hex colors.';
   if (!configuration.empty_cta_url.startsWith('/') && !/^https?:\/\//i.test(configuration.empty_cta_url)) return 'The empty-cart link must be a store path or an HTTP(S) URL.';
   if (!configuration.checkout_text.text.trim()) return 'Checkout button text cannot be empty.';
