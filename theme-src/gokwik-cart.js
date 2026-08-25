@@ -9,6 +9,7 @@
     const loading = root.querySelector('[data-gk-loading]');
     const empty = root.querySelector('[data-gk-empty]');
     const items = root.querySelector('[data-gk-items]');
+    const viewAllButton = root.querySelector('[data-gk-view-all]');
     const footer = root.querySelector('[data-gk-footer]');
     const total = root.querySelector('[data-gk-total]');
     const totalRow = root.querySelector('[data-gk-total-row]');
@@ -47,6 +48,8 @@
     let submitTimer = null;
     let announcementTimer = null;
     let activeBannerIndex = 0;
+    let productsExpanded = false;
+    const compactProductLimit = 3;
 
     if (appearance.font_source === 'gokwik') root.classList.add('gk-cart-root--app-font');
 
@@ -279,7 +282,18 @@
 
     const renderCart = (nextCart) => {
       cart = nextCart;
-      items.replaceChildren(...nextCart.items.map(createCartItem));
+      if (nextCart.items.length <= compactProductLimit) productsExpanded = false;
+      const compact = appearance.display_all_products !== true && nextCart.items.length > compactProductLimit;
+      const visibleItems = compact && !productsExpanded
+        ? nextCart.items.slice(0, compactProductLimit)
+        : nextCart.items;
+      items.replaceChildren(...visibleItems.map(createCartItem));
+      viewAllButton.hidden = !compact;
+      viewAllButton.setAttribute('aria-expanded', String(productsExpanded));
+      const hiddenItemCount = nextCart.items.length - compactProductLimit;
+      viewAllButton.textContent = productsExpanded
+        ? 'Show fewer items'
+        : `View ${hiddenItemCount} more ${hiddenItemCount === 1 ? 'item' : 'items'}`;
       empty.hidden = nextCart.item_count > 0;
       items.hidden = nextCart.item_count === 0;
       footer.hidden = nextCart.item_count === 0;
@@ -381,6 +395,13 @@
       const closeTarget = event.target.closest('[data-gk-close]');
       if (closeTarget) {
         closeCart();
+        return;
+      }
+
+      const viewAllTarget = event.target.closest('[data-gk-view-all]');
+      if (viewAllTarget && cart) {
+        productsExpanded = !productsExpanded;
+        renderCart(cart);
         return;
       }
 

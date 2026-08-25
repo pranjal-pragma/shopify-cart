@@ -315,6 +315,30 @@
   display: none;
 }
 
+.gk-cart-view-all {
+  background: #ffffff;
+  border: 1px solid #cfd1d5;
+  border-radius: 6px;
+  color: #303137;
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 12px auto 18px;
+  min-height: 36px;
+  padding: 8px 14px;
+}
+
+.gk-cart-view-all:hover {
+  background: #f5f5f6;
+  border-color: #b9bbc0;
+}
+
+.gk-cart-view-all[hidden] {
+  display: none;
+}
+
 .gk-cart-item {
   border-bottom: 1px solid var(--gk-cart-border);
   display: grid;
