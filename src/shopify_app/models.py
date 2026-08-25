@@ -45,3 +45,10 @@ class WebhookDelivery(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CartAppearance(TimestampMixin, Base):
+    __tablename__ = "cart_appearances"
+
+    shop_domain: Mapped[str] = mapped_column(String(255), primary_key=True)
+    configuration: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

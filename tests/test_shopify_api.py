@@ -133,3 +133,87 @@ async def test_me_requires_token_exchange(
 async def test_public_graphql_proxy_is_not_exposed(client: httpx.AsyncClient) -> None:
     response = await client.post("/api/v1/shopify/graphql", json={"query": "query { shop { id } }"})
     assert response.status_code == 404
+
+
+async def test_cart_appearance_defaults_and_persists_per_shop(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    first_headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    default_response = await client.get("/api/v1/shopify/appearance", headers=first_headers)
+    assert default_response.status_code == 200
+    configuration = default_response.json()
+    assert configuration["theme_color"] == "#F10A0A"
+    assert configuration["advanced_conditions"] is False
+    assert configuration["updated_at"] is None
+
+    configuration.pop("updated_at")
+    configuration["theme_color"] = "#146B4A"
+    configuration["empty_title"] = "Nothing here yet"
+    saved_response = await client.put(
+        "/api/v1/shopify/appearance", headers=first_headers, json=configuration
+    )
+    assert saved_response.status_code == 200
+    assert saved_response.json()["theme_color"] == "#146B4A"
+    assert saved_response.json()["updated_at"] is not None
+
+    reloaded = await client.get("/api/v1/shopify/appearance", headers=first_headers)
+    assert reloaded.json()["empty_title"] == "Nothing here yet"
+
+    second_headers = {
+        "Authorization": f"Bearer {make_session_token(settings, 'second.myshopify.com')}"
+    }
+    second_shop = await client.get("/api/v1/shopify/appearance", headers=second_headers)
+    assert second_shop.json()["theme_color"] == "#F10A0A"
+
+
+async def test_cart_appearance_rejects_invalid_configuration(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration["theme_color"] = "red"
+
+    response = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert response.status_code == 422
+
+
+async def test_cart_appearance_rejects_conflicting_banner_modes(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration["dynamic_banners"] = True
+    configuration["advanced_conditions"] = True
+
+    response = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert response.status_code == 422
+
+
+async def test_cart_appearance_persists_advanced_banner_conditions(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration["dynamic_banners"] = False
+    configuration["advanced_conditions"] = True
+    configuration["banners"][0]["conditions"] = [
+        {
+            "id": "minimum-cart",
+            "type": "cart_quantity",
+            "operator": "greater_than",
+            "value": "2",
+        }
+    ]
+
+    response = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert response.status_code == 200
+    assert response.json()["banners"][0]["conditions"][0]["value"] == "2"

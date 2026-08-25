@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shopify_app.config import Settings, get_settings
 from shopify_app.controllers import shopify as shopify_controller
 from shopify_app.db import get_db
-from shopify_app.schemas import MerchantResponse, ShopConnectionResponse
+from shopify_app.schemas import (
+    CartAppearanceConfiguration,
+    CartAppearanceResponse,
+    MerchantResponse,
+    ShopConnectionResponse,
+)
 from shopify_app.security import (
     AuthenticationError,
     TokenCipher,
@@ -68,6 +73,27 @@ async def merchant_identity(
     cipher: Annotated[TokenCipher, Depends(get_token_cipher)],
 ) -> MerchantResponse:
     return await shopify_controller.merchant_identity(auth=auth, db=db, cipher=cipher)
+
+
+@router.get("/appearance", response_model=CartAppearanceResponse)
+async def cart_appearance(
+    auth: Annotated[tuple[str, str], Depends(authenticate_session_token)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CartAppearanceResponse:
+    return await shopify_controller.get_cart_appearance(auth=auth, db=db)
+
+
+@router.put("/appearance", response_model=CartAppearanceResponse)
+async def update_cart_appearance(
+    configuration: CartAppearanceConfiguration,
+    auth: Annotated[tuple[str, str], Depends(authenticate_session_token)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    client: Annotated[ShopifyClient, Depends(get_shopify_client)],
+    cipher: Annotated[TokenCipher, Depends(get_token_cipher)],
+) -> CartAppearanceResponse:
+    return await shopify_controller.save_cart_appearance(
+        auth=auth, configuration=configuration, db=db, client=client, cipher=cipher
+    )
 
 
 @router.post("/webhooks", status_code=status.HTTP_200_OK)

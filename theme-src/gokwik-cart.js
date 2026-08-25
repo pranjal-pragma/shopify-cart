@@ -12,6 +12,11 @@
     const footer = root.querySelector('[data-gk-footer]');
     const total = root.querySelector('[data-gk-total]');
     const notice = root.querySelector('[data-gk-notice]');
+    const announcement = root.querySelector('[data-gk-announcement]');
+    const announcementViewport = root.querySelector('[data-gk-announcement-viewport]');
+    const announcementDots = root.querySelector('[data-gk-announcement-dots]');
+    const checkoutLabel = root.querySelector('[data-gk-checkout-label]');
+    const footerMessage = root.querySelector('[data-gk-footer-message]');
     const closeButton = root.querySelector('.gk-cart-icon-button');
     const continueButton = root.querySelector('[data-gk-continue]');
     const nativeFetch = window.fetch.bind(window);
@@ -22,11 +27,40 @@
     const cartJsonUrl = `${cartUrl.replace(/\/$/, '')}.js`;
     const openOnAdd = root.dataset.openOnAdd === 'true';
     const currency = root.dataset.currency || window.Shopify?.currency?.active || 'USD';
+    let appearance = {};
+    try {
+      appearance = JSON.parse(root.dataset.appearance || '{}') || {};
+    } catch (error) {
+      console.error('[GoKwik Cart] Unable to read published appearance', error);
+    }
 
     let cart = null;
     let previousFocus = null;
     let requestSequence = 0;
     let submitTimer = null;
+    let announcementTimer = null;
+    let activeBannerIndex = 0;
+
+    if (appearance.font_source === 'gokwik') root.classList.add('gk-cart-root--app-font');
+
+    const applyRichText = (element, value) => {
+      if (!element || !value) return;
+      element.textContent = value.text || '';
+      element.style.fontSize = `${value.font_size || 14}px`;
+      element.style.fontWeight = value.bold ? '700' : '400';
+      element.style.fontStyle = value.italic ? 'italic' : 'normal';
+      element.style.textDecoration = value.underline ? 'underline' : 'none';
+    };
+
+    applyRichText(checkoutLabel, appearance.checkout_text);
+    if (appearance.checkout_alignment) {
+      root.querySelector('.gk-cart-checkout-button').style.textAlign = appearance.checkout_alignment;
+    }
+    if (appearance.footer_enabled && appearance.footer_text?.text) {
+      footerMessage.hidden = false;
+      footerMessage.style.textAlign = appearance.footer_alignment || 'left';
+      applyRichText(footerMessage, appearance.footer_text);
+    }
 
     const formatMoney = (cents) => {
       try {
@@ -68,6 +102,7 @@
     };
 
     const createPropertyList = (properties) => {
+      if (appearance.show_item_properties === false) return null;
       const visibleProperties = Object.entries(properties || {}).filter(
         ([key, value]) => !key.startsWith('_') && value !== null && value !== '',
       );
@@ -118,7 +153,7 @@
       titleLink.textContent = item.product_title;
       details.append(titleLink);
 
-      if (item.variant_title && item.variant_title !== 'Default Title') {
+      if (appearance.show_variant_names !== false && item.variant_title && item.variant_title !== 'Default Title') {
         const variant = document.createElement('p');
         variant.className = 'gk-cart-variant';
         variant.textContent = item.variant_title;
@@ -147,7 +182,12 @@
       remove.className = 'gk-cart-remove';
       remove.dataset.gkAction = 'remove';
       remove.dataset.line = String(line);
-      remove.textContent = 'Remove';
+      remove.setAttribute('aria-label', `Remove ${item.product_title} from cart`);
+      remove.title = 'Remove item';
+      const removeIcon = document.createElement('span');
+      removeIcon.className = 'gk-cart-remove-icon';
+      removeIcon.setAttribute('aria-hidden', 'true');
+      remove.append(removeIcon);
 
       const price = document.createElement('strong');
       price.className = 'gk-cart-line-price';
@@ -158,6 +198,78 @@
       return row;
     };
 
+    const conditionMatches = (condition, nextCart) => {
+      if (!condition?.value?.trim()) return false;
+      if (condition.type === 'product_title') {
+        const expected = condition.value.trim().toLowerCase();
+        const contains = nextCart.items.some((item) => item.product_title.toLowerCase().includes(expected));
+        return condition.operator === 'does_not_contain' ? !contains : contains;
+      }
+      const expected = Number(condition.value);
+      if (!Number.isFinite(expected)) return false;
+      const actual = condition.type === 'cart_value' ? nextCart.total_price / 100 : nextCart.item_count;
+      if (condition.operator === 'less_than') return actual < expected;
+      if (condition.operator === 'equals') return actual === expected;
+      return actual > expected;
+    };
+
+    const createBannerMessage = (banner, className = '') => {
+      const message = document.createElement('div');
+      message.className = `gk-cart-announcement-message ${className}`.trim();
+      const title = document.createElement('span');
+      applyRichText(title, banner.title);
+      message.append(title);
+      if (banner.show_subtext && banner.subtext?.text) {
+        const subtext = document.createElement('small');
+        applyRichText(subtext, banner.subtext);
+        message.append(subtext);
+      }
+      return message;
+    };
+
+    const showBanner = (banners, index, animate = false) => {
+      const banner = banners[index];
+      if (!banner) return;
+      const next = createBannerMessage(banner, animate ? 'gk-cart-announcement-message--entering' : '');
+      const current = announcementViewport.firstElementChild;
+      if (animate && current) {
+        current.classList.add('gk-cart-announcement-message--leaving');
+        announcementViewport.append(next);
+        window.setTimeout(() => announcementViewport.replaceChildren(next), 420);
+      } else {
+        announcementViewport.replaceChildren(next);
+      }
+      announcementDots.replaceChildren(...banners.map((item, itemIndex) => {
+        const dot = document.createElement('i');
+        dot.classList.toggle('is-active', itemIndex === index);
+        return dot;
+      }));
+    };
+
+    const updateAnnouncement = (nextCart) => {
+      window.clearInterval(announcementTimer);
+      const configured = Array.isArray(appearance.banners) ? appearance.banners : [];
+      const eligible = appearance.advanced_conditions
+        ? configured.filter((banner) => banner.conditions?.length && banner.conditions.every((condition) => conditionMatches(condition, nextCart)))
+        : configured;
+      const banners = eligible.length ? eligible : configured.slice(0, 1);
+      const enabled = appearance.announcement_enabled !== false && banners.length > 0;
+      announcement.hidden = !enabled;
+      if (!enabled) return;
+
+      announcement.style.textAlign = appearance.announcement_alignment || 'center';
+      activeBannerIndex = 0;
+      showBanner(banners, activeBannerIndex);
+      announcementDots.hidden = !appearance.dynamic_banners || banners.length < 2;
+      if (appearance.dynamic_banners && banners.length > 1) {
+        const interval = Math.min(60, Math.max(2, Number(appearance.auto_change_seconds) || 9)) * 1000;
+        announcementTimer = window.setInterval(() => {
+          activeBannerIndex = (activeBannerIndex + 1) % banners.length;
+          showBanner(banners, activeBannerIndex, true);
+        }, interval);
+      }
+    };
+
     const renderCart = (nextCart) => {
       cart = nextCart;
       items.replaceChildren(...nextCart.items.map(createCartItem));
@@ -166,6 +278,7 @@
       footer.hidden = nextCart.item_count === 0;
       total.textContent = formatMoney(nextCart.total_price);
       updateThemeCounts(nextCart.item_count);
+      updateAnnouncement(nextCart);
     };
 
     const loadCart = async ({announce = false} = {}) => {
@@ -204,6 +317,7 @@
       root.classList.remove('gk-cart-root--open');
       drawer.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('gk-cart-page-locked');
+      window.clearInterval(announcementTimer);
       if (previousFocus instanceof HTMLElement) previousFocus.focus();
       document.dispatchEvent(new CustomEvent('gokwik:cart:closed'));
     };

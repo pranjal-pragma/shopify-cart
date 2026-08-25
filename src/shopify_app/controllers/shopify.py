@@ -4,10 +4,17 @@ from typing import cast
 
 import structlog
 from fastapi import HTTPException, Request, Response, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shopify_app.config import Settings
-from shopify_app.schemas import MerchantResponse, ShopConnectionResponse
+from shopify_app.models import CartAppearance
+from shopify_app.schemas import (
+    CartAppearanceConfiguration,
+    CartAppearanceResponse,
+    MerchantResponse,
+    ShopConnectionResponse,
+)
 from shopify_app.security import TokenCipher
 from shopify_app.services.shopify import (
     InvalidWebhookError,
@@ -17,6 +24,7 @@ from shopify_app.services.shopify import (
     exchange_session_token,
     get_merchant_identity,
     process_webhook,
+    publish_cart_appearance,
 )
 from shopify_app.shopify_client import ShopifyClient
 
@@ -59,6 +67,82 @@ async def merchant_identity(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
         ) from exc
+
+
+def default_cart_appearance() -> CartAppearanceConfiguration:
+    return CartAppearanceConfiguration.model_validate(
+        {
+            "banners": [
+                {
+                    "id": "welcome",
+                    "title": {"text": "Free shipping on orders above Rs. 999"},
+                    "subtext": {"text": "Add more to unlock your reward", "font_size": 12},
+                }
+            ],
+            "checkout_text": {"text": "Proceed to checkout", "bold": True, "font_size": 16},
+            "checkout_subtext": {"text": "Safe and secure checkout", "font_size": 12},
+            "footer_text": {"text": "Secure checkout powered by GoKwik", "font_size": 12},
+        }
+    )
+
+
+async def get_cart_appearance(
+    *, auth: tuple[str, str], db: AsyncSession
+) -> CartAppearanceResponse:
+    _, shop_domain = auth
+    appearance = await db.scalar(
+        select(CartAppearance).where(CartAppearance.shop_domain == shop_domain)
+    )
+    if appearance is None:
+        return CartAppearanceResponse(**default_cart_appearance().model_dump())
+    return CartAppearanceResponse(
+        **CartAppearanceConfiguration.model_validate(appearance.configuration).model_dump(),
+        updated_at=appearance.updated_at.isoformat(),
+    )
+
+
+async def save_cart_appearance(
+    *,
+    auth: tuple[str, str],
+    configuration: CartAppearanceConfiguration,
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> CartAppearanceResponse:
+    _, shop_domain = auth
+    serialized = configuration.model_dump(mode="json")
+    try:
+        await publish_cart_appearance(
+            shop_domain=shop_domain,
+            configuration=serialized,
+            db=db,
+            client=client,
+            cipher=cipher,
+        )
+    except TokenExchangeRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
+        ) from exc
+    except ShopifyUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not publish cart appearance to Shopify",
+        ) from exc
+
+    appearance = await db.get(CartAppearance, shop_domain)
+    if appearance is None:
+        appearance = CartAppearance(
+            shop_domain=shop_domain,
+            configuration=serialized,
+        )
+        db.add(appearance)
+    else:
+        appearance.configuration = serialized
+    await db.commit()
+    await db.refresh(appearance)
+    return CartAppearanceResponse(
+        **configuration.model_dump(), updated_at=appearance.updated_at.isoformat()
+    )
 
 
 async def read_limited_body(request: Request, limit: int) -> bytes:

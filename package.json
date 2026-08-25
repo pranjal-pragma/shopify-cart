@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "npm@10.9.8",
   "scripts": {
-    "build": "npm --prefix extensions/gokwik-cart run build && npm --prefix admin run build",
+    "build": "npm --prefix theme-src run build && npm --prefix admin run build",
     "dev": "uv run python scripts/run_shopify_dev.py"
   }
 }

@@ -20,6 +20,8 @@ from shopify_app.security import (
 from shopify_app.shopify_client import ShopifyClient, ShopifyUpstreamError
 
 TOKEN_REFRESH_MARGIN = timedelta(minutes=5)
+APPEARANCE_METAFIELD_NAMESPACE = "cart"
+APPEARANCE_METAFIELD_KEY = "appearance"
 
 
 class ShopifyServiceError(Exception):
@@ -242,6 +244,52 @@ async def get_merchant_identity(
         scopes=split_scopes(session.scopes),
         onboarding_completed=session.onboarding_completed,
     )
+
+
+async def publish_cart_appearance(
+    *,
+    shop_domain: str,
+    configuration: dict[str, Any],
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> None:
+    session = await db.get(ShopSession, shop_domain)
+    if session is None or session.app_installation_gid is None:
+        return
+
+    access_token = await get_valid_access_token(
+        shop_domain=shop_domain, db=db, client=client, cipher=cipher
+    )
+    try:
+        payload = await client.graphql(
+            shop_domain=shop_domain,
+            access_token=access_token,
+            query="""
+                mutation PublishCartAppearance($metafields: [MetafieldsSetInput!]!) {
+                  metafieldsSet(metafields: $metafields) {
+                    metafields { id namespace key }
+                    userErrors { field message code }
+                  }
+                }
+            """,
+            variables={
+                "metafields": [
+                    {
+                        "ownerId": session.app_installation_gid,
+                        "namespace": APPEARANCE_METAFIELD_NAMESPACE,
+                        "key": APPEARANCE_METAFIELD_KEY,
+                        "type": "json",
+                        "value": json.dumps(configuration, separators=(",", ":")),
+                    }
+                ]
+            },
+        )
+        result = payload["data"]["metafieldsSet"]
+        if payload.get("errors") or result["userErrors"]:
+            raise ShopifyUpstreamError("Shopify rejected the cart appearance metafield")
+    except (KeyError, TypeError, ShopifyUpstreamError, httpx.HTTPError) as exc:
+        raise ShopifyUnavailableError from exc
 
 
 async def process_webhook(
