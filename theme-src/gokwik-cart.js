@@ -11,6 +11,7 @@
     const items = root.querySelector('[data-gk-items]');
     const viewAllButton = root.querySelector('[data-gk-view-all]');
     const footer = root.querySelector('[data-gk-footer]');
+    const savings = root.querySelector('[data-gk-savings]');
     const total = root.querySelector('[data-gk-total]');
     const totalRow = root.querySelector('[data-gk-total-row]');
     const breakdown = root.querySelector('[data-gk-breakdown]');
@@ -50,6 +51,7 @@
     let activeBannerIndex = 0;
     let productsExpanded = false;
     const compactProductLimit = 3;
+    const compareAtPrices = new Map();
 
     if (appearance.font_source === 'gokwik') root.classList.add('gk-cart-root--app-font');
 
@@ -199,13 +201,48 @@
       removeIcon.setAttribute('aria-hidden', 'true');
       remove.append(removeIcon);
 
+      const priceWrap = document.createElement('span');
+      priceWrap.className = 'gk-cart-line-prices';
+      const compareAtPrice = compareAtPrices.get(Number(item.variant_id));
+      if (appearance.show_mrp_discounts && compareAtPrice > item.final_price) {
+        const mrp = document.createElement('s');
+        mrp.className = 'gk-cart-compare-price';
+        mrp.textContent = formatMoney(compareAtPrice * item.quantity);
+        priceWrap.append(mrp);
+      }
       const price = document.createElement('strong');
       price.className = 'gk-cart-line-price';
       price.textContent = formatMoney(item.final_line_price);
-      controls.append(quantity, remove, price);
+      priceWrap.append(price);
+      controls.append(quantity, remove, priceWrap);
       details.append(controls);
       row.append(imageLink, details);
       return row;
+    };
+
+    const loadCompareAtPrices = async (nextCart) => {
+      if (!appearance.show_mrp_discounts) return false;
+      const handles = [...new Set(nextCart.items
+        .filter((item) => item.handle && !compareAtPrices.has(Number(item.variant_id)))
+        .map((item) => item.handle))];
+      if (!handles.length) return false;
+
+      await Promise.all(handles.map(async (handle) => {
+        try {
+          const response = await nativeFetch(`${routesRoot}products/${encodeURIComponent(handle)}.js`, {
+            headers: {'Accept': 'application/json'},
+            credentials: 'same-origin',
+          });
+          if (!response.ok) return;
+          const product = await response.json();
+          (product.variants || []).forEach((variant) => {
+            compareAtPrices.set(Number(variant.id), Number(variant.compare_at_price) || 0);
+          });
+        } catch (error) {
+          console.error('[GoKwik Cart] Unable to load compare-at prices', error);
+        }
+      }));
+      return true;
     };
 
     const conditionMatches = (condition, nextCart) => {
@@ -303,6 +340,9 @@
       breakdownFinal.textContent = formattedTotal;
       subtotal.textContent = formatMoney(nextCart.items_subtotal_price ?? nextCart.total_price);
       const totalDiscount = Number(nextCart.total_discount) || 0;
+      const showSavings = appearance.show_savings !== false && totalDiscount > 0;
+      savings.hidden = !showSavings;
+      savings.textContent = showSavings ? `You saved ${formatMoney(totalDiscount)} on this order` : '';
       discountRow.hidden = totalDiscount <= 0;
       discount.textContent = totalDiscount > 0 ? `-${formatMoney(totalDiscount)}` : '';
       const showBreakdown = appearance.show_estimated_total_breakup !== false;
@@ -310,6 +350,13 @@
       breakdown.hidden = !showBreakdown;
       updateThemeCounts(nextCart.item_count);
       updateAnnouncement(nextCart);
+    };
+
+    const renderCartWithPrices = (nextCart) => {
+      renderCart(nextCart);
+      loadCompareAtPrices(nextCart).then((updated) => {
+        if (updated && cart === nextCart) renderCart(nextCart);
+      });
     };
 
     const loadCart = async ({announce = false} = {}) => {
@@ -323,7 +370,7 @@
         if (!response.ok) throw new Error(`Cart request failed (${response.status})`);
         const nextCart = await response.json();
         if (sequence !== requestSequence) return;
-        renderCart(nextCart);
+        renderCartWithPrices(nextCart);
         setNotice(announce ? 'Cart updated.' : '');
       } catch (error) {
         if (sequence !== requestSequence) return;
@@ -364,7 +411,7 @@
           body: JSON.stringify({line, quantity}),
         });
         if (!response.ok) throw new Error(`Cart update failed (${response.status})`);
-        renderCart(await response.json());
+        renderCartWithPrices(await response.json());
         setNotice(quantity === 0 ? 'Item removed.' : 'Cart updated.');
       } catch (error) {
         setNotice('That change could not be saved. Please try again.', true);

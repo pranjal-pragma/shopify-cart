@@ -499,7 +499,19 @@
 .gk-cart-line-price {
   color: #25262a;
   font-size: 13px;
+}
+
+.gk-cart-line-prices {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
   justify-self: end;
+}
+
+.gk-cart-compare-price {
+  color: #8a8d94;
+  font-size: 10px;
+  margin-bottom: 2px;
 }
 
 .gk-cart-root--updating .gk-cart-items {
@@ -515,6 +527,21 @@
 }
 
 .gk-cart-footer[hidden] {
+  display: none;
+}
+
+.gk-cart-savings {
+  background: color-mix(in srgb, var(--gk-cart-accent) 9%, #ffffff);
+  border-radius: 5px;
+  color: var(--gk-cart-accent);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.gk-cart-savings[hidden] {
   display: none;
 }
 
