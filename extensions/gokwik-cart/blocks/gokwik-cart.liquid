@@ -1,0 +1,173 @@
+{% assign appearance = app.metafields.cart.appearance.value %}
+{% assign accent_color = appearance.theme_color | default: block.settings.accent_color %}
+{% assign empty_title = appearance.empty_title | default: block.settings.empty_title %}
+{% assign continue_label = appearance.empty_cta_text | default: block.settings.continue_label %}
+{% assign continue_link = appearance.empty_cta_url | default: block.settings.continue_link %}
+{% assign checkout_label = appearance.checkout_text.text | default: block.settings.checkout_label %}
+
+<script src="{{ 'gokwik-cart-extras.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'gokwik-cart-settings.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'gokwik-cart-scarcity.js' | asset_url }}" defer="defer"></script>
+
+<div
+  class="gk-cart-root"
+  data-gokwik-cart-root
+  data-cart-url="{{ routes.cart_url }}"
+  data-cart-add-url="{{ routes.cart_add_url }}"
+  data-cart-change-url="{{ routes.cart_change_url }}"
+  data-currency="{{ cart.currency.iso_code | default: shop.currency }}"
+  data-country="{{ localization.country.iso_code }}"
+  data-appearance="{{ appearance | json | escape }}"
+  style="--gk-cart-accent: {{ accent_color }}; --gk-cart-announcement-background: {{ appearance.announcement_background | default: '#FFF2F2' }}; --gk-cart-announcement-color: {{ appearance.announcement_text_color | default: '#7A1515' }}; --gk-cart-checkout-background: {{ appearance.checkout_background | default: '#202124' }}; --gk-cart-checkout-color: {{ appearance.checkout_text_color | default: '#FFFFFF' }}; --gk-cart-footer-color: {{ appearance.footer_text_color | default: '#676A72' }};"
+>
+  <button class="gk-cart-overlay" type="button" aria-label="Close cart" data-gk-close tabindex="-1"></button>
+
+  <aside
+    class="gk-cart-drawer"
+    role="dialog"
+    aria-modal="true"
+    aria-hidden="true"
+    aria-labelledby="gk-cart-title"
+    data-gk-drawer
+  >
+    <div class="gk-cart-announcement" data-gk-announcement hidden>
+      <div class="gk-cart-announcement-viewport" data-gk-announcement-viewport aria-live="polite"></div>
+      <div class="gk-cart-announcement-dots" data-gk-announcement-dots aria-hidden="true"></div>
+    </div>
+
+    <header class="gk-cart-header">
+      <div>
+        <p class="gk-cart-eyebrow">Your order</p>
+        <h2 id="gk-cart-title">{{ block.settings.drawer_title | escape }}</h2>
+      </div>
+      <button class="gk-cart-icon-button" type="button" aria-label="Close cart" data-gk-close>
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </header>
+
+    <div class="gk-cart-scarcity" data-gk-scarcity role="timer" hidden>
+      <span data-gk-scarcity-title></span>
+      <strong data-gk-scarcity-time></strong>
+    </div>
+
+    <div class="gk-cart-notice" role="status" aria-live="polite" data-gk-notice></div>
+
+    <div class="gk-cart-content" data-gk-content>
+      <div class="gk-cart-loading" data-gk-loading>
+        <span class="gk-cart-spinner" aria-hidden="true"></span>
+        <span>Loading your cart</span>
+      </div>
+
+      <div class="gk-cart-empty" data-gk-empty hidden>
+        <span class="gk-cart-empty-icon" aria-hidden="true"></span>
+        <h3>{{ empty_title | escape }}</h3>
+        <a class="gk-cart-secondary-button" href="{{ continue_link }}" data-gk-continue>
+          {{ continue_label | escape }}
+        </a>
+      </div>
+
+      <ul class="gk-cart-items" data-gk-items aria-label="Cart items"></ul>
+      <button class="gk-cart-view-all" type="button" data-gk-view-all hidden aria-expanded="false"></button>
+    </div>
+
+    <footer class="gk-cart-footer" data-gk-footer hidden>
+      <p class="gk-cart-savings" data-gk-savings hidden></p>
+      <div class="gk-cart-total-row" data-gk-total-row>
+        <span>Estimated total</span>
+        <strong data-gk-total></strong>
+      </div>
+      <details class="gk-cart-breakdown" data-gk-breakdown hidden>
+        <summary>
+          <span>Estimated total</span>
+          <strong data-gk-breakdown-total></strong>
+        </summary>
+        <dl>
+          <div><dt>Items subtotal</dt><dd data-gk-subtotal></dd></div>
+          <div data-gk-discount-row hidden><dt>Discounts</dt><dd data-gk-discount></dd></div>
+          <div class="gk-cart-breakdown-total"><dt>Total</dt><dd data-gk-breakdown-final></dd></div>
+        </dl>
+      </details>
+      <p class="gk-cart-tax-note">Taxes and shipping calculated at checkout.</p>
+      <div class="gk-cart-terms" data-gk-terms hidden>
+        <label><input type="checkbox" data-gk-terms-checkbox><span data-gk-terms-text></span></label>
+        <a href="/policies/terms-of-service" target="_blank" rel="noopener" data-gk-terms-link>View terms</a>
+      </div>
+      <a class="gk-cart-checkout-button" href="/checkout">
+        <span data-gk-checkout-label>{{ checkout_label | escape }}</span>
+        <span aria-hidden="true">&rarr;</span>
+      </a>
+      <p class="gk-cart-footer-message" data-gk-footer-message hidden></p>
+    </footer>
+  </aside>
+
+  <button class="gk-cart-sticky" type="button" data-gk-sticky-cart hidden>
+    <span><span class="gk-cart-sticky-icon" aria-hidden="true"></span><span data-gk-sticky-count>0 items</span></span>
+    <strong data-gk-sticky-total></strong>
+  </button>
+
+  <div class="gk-cart-confirmation" data-gk-confirmation role="status" aria-live="polite" hidden>
+    Item added to your cart
+  </div>
+
+  <div class="gk-cart-product-modal" data-gk-product-modal role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="gk-cart-product-modal-title" hidden>
+    <button class="gk-cart-product-modal__backdrop" type="button" data-gk-modal-close aria-label="Close product details"></button>
+    <div class="gk-cart-product-modal__dialog">
+      <button class="gk-cart-icon-button gk-cart-product-modal__close" type="button" data-gk-modal-close aria-label="Close product details"><span aria-hidden="true">&times;</span></button>
+      <img data-gk-modal-image width="320" height="320" alt="" hidden>
+      <div class="gk-cart-product-modal__content">
+        <h3 id="gk-cart-product-modal-title" data-gk-modal-title></h3>
+        <p data-gk-modal-variant></p>
+        <strong data-gk-modal-price></strong>
+        <p data-gk-modal-description></p>
+        <a data-gk-modal-link href="#">View product</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Cart drawer",
+  "target": "body",
+  "javascript": "gokwik-cart.js",
+  "stylesheet": "gokwik-cart.css",
+  "settings": [
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#202124"
+    },
+    {
+      "type": "text",
+      "id": "drawer_title",
+      "label": "Cart title",
+      "default": "Your cart"
+    },
+    {
+      "type": "text",
+      "id": "empty_title",
+      "label": "Empty cart title",
+      "default": "Your cart is empty"
+    },
+    {
+      "type": "text",
+      "id": "continue_label",
+      "label": "Continue shopping label",
+      "default": "Continue shopping"
+    },
+    {
+      "type": "url",
+      "id": "continue_link",
+      "label": "Continue shopping link",
+      "default": "/collections/all"
+    },
+    {
+      "type": "text",
+      "id": "checkout_label",
+      "label": "Checkout button label",
+      "default": "Checkout securely"
+    }
+  ]
+}
+{% endschema %}

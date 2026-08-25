@@ -7,7 +7,11 @@ import jwt
 import pytest
 
 from shopify_app.config import Settings
-from shopify_app.schemas import ShopifyInstallationIdentity, TokenExchangeResponse
+from shopify_app.schemas import (
+    CartAppearanceConfiguration,
+    ShopifyInstallationIdentity,
+    TokenExchangeResponse,
+)
 from shopify_app.shopify_client import ShopifyClient
 
 
@@ -35,7 +39,13 @@ async def test_token_exchange_then_me(
     ) -> TokenExchangeResponse:
         assert shop_domain == "example-shop.myshopify.com"
         assert session_token
-        return TokenExchangeResponse(access_token="shpat_test", scope="read_products")
+        return TokenExchangeResponse(
+            access_token="shpat_test",
+            scope="read_products",
+            expires_in=3600,
+            refresh_token="shprt_test",
+            refresh_token_expires_in=7_776_000,
+        )
 
     async def fake_identity(
         self: ShopifyClient, *, shop_domain: str, access_token: str
@@ -56,7 +66,7 @@ async def test_token_exchange_then_me(
     assert exchange_response.json() == {
         "shop_domain": "example-shop.myshopify.com",
         "scopes": ["read_products"],
-        "expires_in": None,
+        "expires_in": 3600,
     }
 
     me_response = await client.get("/api/v1/shopify/me", headers=headers)
@@ -75,7 +85,13 @@ async def test_me_is_isolated_to_authenticated_shop(
     async def fake_exchange(
         self: ShopifyClient, *, shop_domain: str, session_token: str
     ) -> TokenExchangeResponse:
-        return TokenExchangeResponse(access_token=f"token-{shop_domain}", scope="read_products")
+        return TokenExchangeResponse(
+            access_token=f"token-{shop_domain}",
+            scope="read_products",
+            expires_in=3600,
+            refresh_token=f"refresh-{shop_domain}",
+            refresh_token_expires_in=7_776_000,
+        )
 
     async def fake_identity(
         self: ShopifyClient, *, shop_domain: str, access_token: str
@@ -121,3 +137,208 @@ async def test_me_requires_token_exchange(
 async def test_public_graphql_proxy_is_not_exposed(client: httpx.AsyncClient) -> None:
     response = await client.post("/api/v1/shopify/graphql", json={"query": "query { shop { id } }"})
     assert response.status_code == 404
+
+
+async def test_cart_appearance_defaults_and_persists_per_shop(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    first_headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    default_response = await client.get("/api/v1/shopify/appearance", headers=first_headers)
+    assert default_response.status_code == 200
+    configuration = default_response.json()
+    assert configuration["theme_color"] == "#F10A0A"
+    assert configuration["advanced_conditions"] is False
+    assert configuration["add_to_cart_behavior"] == "nothing"
+    assert configuration["confirmation_background"] == "#202124"
+    assert configuration["confirmation_text_color"] == "#FFFFFF"
+    assert configuration["scarcity_timer_type"] == "urgency"
+    assert configuration["scarcity_timer_title"]["text"] == "Your cart is reserved for"
+    assert configuration["scarcity_timer_started_at"] is None
+    assert configuration["scarcity_sale_starts_at"] is None
+    assert configuration["scarcity_sale_ends_at"] is None
+    assert configuration["block_cart_page_redirection"] is True
+    assert configuration["variant_selection_enabled"] is True
+    assert configuration["updated_at"] is None
+
+    configuration.pop("updated_at")
+    configuration["theme_color"] = "#146B4A"
+    configuration["empty_title"] = "Nothing here yet"
+    configuration["add_to_cart_behavior"] = "confirmation"
+    configuration["confirmation_background"] = "#146B4A"
+    configuration["confirmation_text_color"] = "#FFF9E8"
+    configuration["custom_cart_icon_selectors"] = [".header-cart"]
+    saved_response = await client.put(
+        "/api/v1/shopify/appearance", headers=first_headers, json=configuration
+    )
+    assert saved_response.status_code == 200
+    assert saved_response.json()["theme_color"] == "#146B4A"
+    assert saved_response.json()["updated_at"] is not None
+
+    reloaded = await client.get("/api/v1/shopify/appearance", headers=first_headers)
+    assert reloaded.json()["empty_title"] == "Nothing here yet"
+    assert reloaded.json()["add_to_cart_behavior"] == "confirmation"
+    assert reloaded.json()["confirmation_background"] == "#146B4A"
+    assert reloaded.json()["confirmation_text_color"] == "#FFF9E8"
+    assert reloaded.json()["custom_cart_icon_selectors"] == [".header-cart"]
+
+    second_headers = {
+        "Authorization": f"Bearer {make_session_token(settings, 'second.myshopify.com')}"
+    }
+    second_shop = await client.get("/api/v1/shopify/appearance", headers=second_headers)
+    assert second_shop.json()["theme_color"] == "#F10A0A"
+
+
+async def test_cart_appearance_rejects_invalid_configuration(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration["theme_color"] = "red"
+
+    response = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert response.status_code == 422
+
+
+async def test_cart_appearance_rejects_conflicting_banner_modes(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration["dynamic_banners"] = True
+    configuration["advanced_conditions"] = True
+
+    response = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert response.status_code == 422
+
+
+async def test_cart_appearance_publishes_sales_period_and_rejects_invalid_range(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration.update(
+        {
+            "scarcity_timer_enabled": True,
+            "scarcity_timer_type": "sales",
+            "scarcity_sale_starts_at": "2026-08-25T12:30:00Z",
+            "scarcity_sale_ends_at": "2026-08-26T12:30:00Z",
+        }
+    )
+
+    saved = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert saved.status_code == 200
+    assert saved.json()["scarcity_sale_starts_at"] == "2026-08-25T12:30:00Z"
+    assert saved.json()["scarcity_sale_ends_at"] == "2026-08-26T12:30:00Z"
+
+    configuration["scarcity_sale_ends_at"] = configuration["scarcity_sale_starts_at"]
+    invalid = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert invalid.status_code == 422
+
+
+def test_cart_appearance_migrates_legacy_scarcity_text() -> None:
+    configuration = {
+        **CartAppearanceConfiguration.model_validate(
+            {
+                "banners": [
+                    {
+                        "id": "welcome",
+                        "title": {"text": "Welcome"},
+                        "subtext": {"text": ""},
+                    }
+                ],
+                "checkout_text": {"text": "Checkout"},
+                "checkout_subtext": {"text": ""},
+                "footer_text": {"text": "Secure"},
+            }
+        ).model_dump(mode="json"),
+        "scarcity_timer_text": "Complete checkout in {time}",
+    }
+    configuration.pop("scarcity_timer_title")
+
+    migrated = CartAppearanceConfiguration.model_validate(configuration)
+
+    assert migrated.scarcity_timer_title.text == "Complete checkout in"
+
+
+def test_cart_appearance_migrates_legacy_sales_timer_period() -> None:
+    configuration = CartAppearanceConfiguration.model_validate(
+        {
+            "banners": [
+                {
+                    "id": "welcome",
+                    "title": {"text": "Welcome"},
+                    "subtext": {"text": ""},
+                }
+            ],
+            "checkout_text": {"text": "Checkout"},
+            "checkout_subtext": {"text": ""},
+            "footer_text": {"text": "Secure"},
+            "scarcity_timer_enabled": True,
+            "scarcity_timer_type": "sales",
+            "scarcity_timer_started_at": "2026-08-25T12:30:00Z",
+            "scarcity_timer_minutes": 30,
+        }
+    )
+
+    migrated_start = configuration.scarcity_sale_starts_at
+    migrated_end = configuration.scarcity_sale_ends_at
+    assert migrated_start is not None
+    assert migrated_end is not None
+    assert int((migrated_end - migrated_start).total_seconds()) == 1800
+
+
+async def test_cart_settings_reject_invalid_selectors_and_incomplete_quantity_limit(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration["custom_cart_icon_selectors"] = [".cart { display: none; }"]
+
+    invalid_selector = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert invalid_selector.status_code == 422
+
+    configuration["custom_cart_icon_selectors"] = []
+    configuration["product_quantity_limit_enabled"] = True
+    configuration["quantity_limit_variant_id"] = None
+    incomplete_limit = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert incomplete_limit.status_code == 422
+
+
+async def test_cart_appearance_persists_advanced_banner_conditions(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration["dynamic_banners"] = False
+    configuration["advanced_conditions"] = True
+    configuration["banners"][0]["conditions"] = [
+        {
+            "id": "minimum-cart",
+            "type": "cart_quantity",
+            "operator": "greater_than",
+            "value": "2",
+        }
+    ]
+
+    response = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert response.status_code == 200
+    assert response.json()["banners"][0]["conditions"][0]["value"] == "2"

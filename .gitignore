@@ -3,7 +3,12 @@
 /shopify.app.toml
 /uv.lock
 package-lock.json
-/admin/
+/admin/.env
+/admin/dist/
+/admin/node_modules/
+/admin/*.tsbuildinfo
+/admin/vite.config.js
+/admin/vite.config.d.ts
 .venv/
 .pytest_cache/
 .ruff_cache/
@@ -17,3 +22,4 @@ dist/
 build/
 .vscode/
 .shopify/
+/theme-src/node_modules/
