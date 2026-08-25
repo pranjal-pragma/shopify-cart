@@ -61,10 +61,21 @@
     </div>
 
     <footer class="gk-cart-footer" data-gk-footer hidden>
-      <div class="gk-cart-total-row">
+      <div class="gk-cart-total-row" data-gk-total-row>
         <span>Estimated total</span>
         <strong data-gk-total></strong>
       </div>
+      <details class="gk-cart-breakdown" data-gk-breakdown hidden>
+        <summary>
+          <span>Estimated total</span>
+          <strong data-gk-breakdown-total></strong>
+        </summary>
+        <dl>
+          <div><dt>Items subtotal</dt><dd data-gk-subtotal></dd></div>
+          <div data-gk-discount-row hidden><dt>Discounts</dt><dd data-gk-discount></dd></div>
+          <div class="gk-cart-breakdown-total"><dt>Total</dt><dd data-gk-breakdown-final></dd></div>
+        </dl>
+      </details>
       <p class="gk-cart-tax-note">Taxes and shipping calculated at checkout.</p>
       <a class="gk-cart-checkout-button" href="/checkout">
         <span data-gk-checkout-label>{{ checkout_label | escape }}</span>

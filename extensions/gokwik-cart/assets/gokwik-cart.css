@@ -33,6 +33,12 @@
   background: var(--gk-cart-surface);
   box-shadow: -14px 0 38px rgb(18 19 22 / 14%);
   display: grid;
+  grid-template-areas:
+    "announcement"
+    "header"
+    "notice"
+    "content"
+    "footer";
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   height: 100%;
   max-width: 100%;
@@ -43,6 +49,26 @@
   transform: translateX(102%);
   transition: transform 220ms ease;
   width: 430px;
+}
+
+.gk-cart-announcement {
+  grid-area: announcement;
+}
+
+.gk-cart-header {
+  grid-area: header;
+}
+
+.gk-cart-notice {
+  grid-area: notice;
+}
+
+.gk-cart-content {
+  grid-area: content;
+}
+
+.gk-cart-footer {
+  grid-area: footer;
 }
 
 .gk-cart-root--open {
@@ -478,6 +504,83 @@
 
 .gk-cart-total-row strong {
   font-size: 17px;
+}
+
+.gk-cart-total-row[hidden] {
+  display: none;
+}
+
+.gk-cart-breakdown {
+  color: #292a2e;
+}
+
+.gk-cart-breakdown[hidden] {
+  display: none;
+}
+
+.gk-cart-breakdown summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  justify-content: space-between;
+  list-style: none;
+  padding-right: 22px;
+  position: relative;
+}
+
+.gk-cart-breakdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.gk-cart-breakdown summary::after {
+  border-bottom: 2px solid currentcolor;
+  border-right: 2px solid currentcolor;
+  content: "";
+  height: 7px;
+  position: absolute;
+  right: 3px;
+  top: 5px;
+  transform: rotate(45deg);
+  transition: transform 160ms ease;
+  width: 7px;
+}
+
+.gk-cart-breakdown[open] summary::after {
+  transform: translateY(4px) rotate(225deg);
+}
+
+.gk-cart-breakdown summary strong {
+  font-size: 17px;
+}
+
+.gk-cart-breakdown dl {
+  border-top: 1px solid var(--gk-cart-border);
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+}
+
+.gk-cart-breakdown dl > div {
+  align-items: center;
+  color: var(--gk-cart-muted);
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  margin-top: 7px;
+}
+
+.gk-cart-breakdown dl > div[hidden] {
+  display: none;
+}
+
+.gk-cart-breakdown dt,
+.gk-cart-breakdown dd {
+  margin: 0;
+}
+
+.gk-cart-breakdown .gk-cart-breakdown-total {
+  color: #292a2e;
+  font-weight: 700;
 }
 
 .gk-cart-tax-note {
