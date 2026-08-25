@@ -347,6 +347,21 @@
   padding: 19px 0;
 }
 
+.gk-cart-item--gift {
+  background: color-mix(in srgb, var(--gk-cart-accent) 5%, #ffffff);
+  margin: 0 -10px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.gk-cart-gift-label {
+  color: var(--gk-cart-accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .gk-cart-image-link {
   background: #f5f5f6;
   border-radius: 7px;

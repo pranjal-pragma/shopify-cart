@@ -11,19 +11,8 @@
     const items = root.querySelector('[data-gk-items]');
     const viewAllButton = root.querySelector('[data-gk-view-all]');
     const footer = root.querySelector('[data-gk-footer]');
-    const savings = root.querySelector('[data-gk-savings]');
     const total = root.querySelector('[data-gk-total]');
-    const totalRow = root.querySelector('[data-gk-total-row]');
-    const breakdown = root.querySelector('[data-gk-breakdown]');
-    const breakdownTotal = root.querySelector('[data-gk-breakdown-total]');
-    const breakdownFinal = root.querySelector('[data-gk-breakdown-final]');
-    const subtotal = root.querySelector('[data-gk-subtotal]');
-    const discountRow = root.querySelector('[data-gk-discount-row]');
-    const discount = root.querySelector('[data-gk-discount]');
     const notice = root.querySelector('[data-gk-notice]');
-    const announcement = root.querySelector('[data-gk-announcement]');
-    const announcementViewport = root.querySelector('[data-gk-announcement-viewport]');
-    const announcementDots = root.querySelector('[data-gk-announcement-dots]');
     const checkoutLabel = root.querySelector('[data-gk-checkout-label]');
     const footerMessage = root.querySelector('[data-gk-footer-message]');
     const closeButton = root.querySelector('.gk-cart-icon-button');
@@ -47,11 +36,8 @@
     let previousFocus = null;
     let requestSequence = 0;
     let submitTimer = null;
-    let announcementTimer = null;
-    let activeBannerIndex = 0;
     let productsExpanded = false;
     const compactProductLimit = 3;
-    const compareAtPrices = new Map();
 
     if (appearance.font_source === 'gokwik') root.classList.add('gk-cart-root--app-font');
 
@@ -132,10 +118,18 @@
       return list;
     };
 
-    const createCartItem = (item, index) => {
-      const line = index + 1;
+    const isFreeGift = (item) => {
+      const marker = item.properties?._gokwik_free_gift;
+      const marked = marker === true || ['true', '1', 'yes'].includes(String(marker).toLowerCase());
+      const fullyDiscounted = Number(item.original_line_price) > 0 && Number(item.final_line_price) === 0;
+      return marked || fullyDiscounted;
+    };
+
+    const createCartItem = (item, line, freeGift) => {
       const row = document.createElement('li');
       row.className = 'gk-cart-item';
+      row.dataset.gkLine = String(line);
+      row.classList.toggle('gk-cart-item--gift', freeGift);
 
     const imageLink = document.createElement('a');
     imageLink.className = 'gk-cart-image-link';
@@ -163,6 +157,12 @@
       titleLink.className = 'gk-cart-item-title';
       titleLink.href = item.url;
       titleLink.textContent = item.product_title;
+      if (freeGift) {
+        const giftLabel = document.createElement('span');
+        giftLabel.className = 'gk-cart-gift-label';
+        giftLabel.textContent = 'Free gift';
+        details.append(giftLabel);
+      }
       details.append(titleLink);
 
       if (appearance.show_variant_names !== false && item.variant_title && item.variant_title !== 'Default Title') {
@@ -203,13 +203,6 @@
 
       const priceWrap = document.createElement('span');
       priceWrap.className = 'gk-cart-line-prices';
-      const compareAtPrice = compareAtPrices.get(Number(item.variant_id));
-      if (appearance.show_mrp_discounts && compareAtPrice > item.final_price) {
-        const mrp = document.createElement('s');
-        mrp.className = 'gk-cart-compare-price';
-        mrp.textContent = formatMoney(compareAtPrice * item.quantity);
-        priceWrap.append(mrp);
-      }
       const price = document.createElement('strong');
       price.className = 'gk-cart-line-price';
       price.textContent = formatMoney(item.final_line_price);
@@ -220,111 +213,22 @@
       return row;
     };
 
-    const loadCompareAtPrices = async (nextCart) => {
-      if (!appearance.show_mrp_discounts) return false;
-      const handles = [...new Set(nextCart.items
-        .filter((item) => item.handle && !compareAtPrices.has(Number(item.variant_id)))
-        .map((item) => item.handle))];
-      if (!handles.length) return false;
-
-      await Promise.all(handles.map(async (handle) => {
-        try {
-          const response = await nativeFetch(`${routesRoot}products/${encodeURIComponent(handle)}.js`, {
-            headers: {'Accept': 'application/json'},
-            credentials: 'same-origin',
-          });
-          if (!response.ok) return;
-          const product = await response.json();
-          (product.variants || []).forEach((variant) => {
-            compareAtPrices.set(Number(variant.id), Number(variant.compare_at_price) || 0);
-          });
-        } catch (error) {
-          console.error('[GoKwik Cart] Unable to load compare-at prices', error);
-        }
-      }));
-      return true;
-    };
-
-    const conditionMatches = (condition, nextCart) => {
-      if (!condition?.value?.trim()) return false;
-      if (condition.type === 'product_title') {
-        const expected = condition.value.trim().toLowerCase();
-        const contains = nextCart.items.some((item) => item.product_title.toLowerCase().includes(expected));
-        return condition.operator === 'does_not_contain' ? !contains : contains;
-      }
-      const expected = Number(condition.value);
-      if (!Number.isFinite(expected)) return false;
-      const actual = condition.type === 'cart_value' ? nextCart.total_price / 100 : nextCart.item_count;
-      if (condition.operator === 'less_than') return actual < expected;
-      if (condition.operator === 'equals') return actual === expected;
-      return actual > expected;
-    };
-
-    const createBannerMessage = (banner, className = '') => {
-      const message = document.createElement('div');
-      message.className = `gk-cart-announcement-message ${className}`.trim();
-      const title = document.createElement('span');
-      applyRichText(title, banner.title);
-      message.append(title);
-      if (banner.show_subtext && banner.subtext?.text) {
-        const subtext = document.createElement('small');
-        applyRichText(subtext, banner.subtext);
-        message.append(subtext);
-      }
-      return message;
-    };
-
-    const showBanner = (banners, index, animate = false) => {
-      const banner = banners[index];
-      if (!banner) return;
-      const next = createBannerMessage(banner, animate ? 'gk-cart-announcement-message--entering' : '');
-      const current = announcementViewport.firstElementChild;
-      if (animate && current) {
-        current.classList.add('gk-cart-announcement-message--leaving');
-        announcementViewport.append(next);
-        window.setTimeout(() => announcementViewport.replaceChildren(next), 420);
-      } else {
-        announcementViewport.replaceChildren(next);
-      }
-      announcementDots.replaceChildren(...banners.map((item, itemIndex) => {
-        const dot = document.createElement('i');
-        dot.classList.toggle('is-active', itemIndex === index);
-        return dot;
-      }));
-    };
-
-    const updateAnnouncement = (nextCart) => {
-      window.clearInterval(announcementTimer);
-      const configured = Array.isArray(appearance.banners) ? appearance.banners : [];
-      const eligible = appearance.advanced_conditions
-        ? configured.filter((banner) => banner.conditions?.length && banner.conditions.every((condition) => conditionMatches(condition, nextCart)))
-        : configured;
-      const banners = eligible.length ? eligible : configured.slice(0, 1);
-      const enabled = appearance.announcement_enabled !== false && banners.length > 0;
-      announcement.hidden = !enabled;
-      if (!enabled) return;
-
-      announcement.style.textAlign = appearance.announcement_alignment || 'center';
-      activeBannerIndex = 0;
-      showBanner(banners, activeBannerIndex);
-      announcementDots.hidden = !appearance.dynamic_banners || banners.length < 2;
-      if (appearance.dynamic_banners && banners.length > 1) {
-        const interval = Math.min(60, Math.max(2, Number(appearance.auto_change_seconds) || 9)) * 1000;
-        announcementTimer = window.setInterval(() => {
-          activeBannerIndex = (activeBannerIndex + 1) % banners.length;
-          showBanner(banners, activeBannerIndex, true);
-        }, interval);
-      }
-    };
-
     const renderCart = (nextCart) => {
       cart = nextCart;
       if (nextCart.items.length <= compactProductLimit) productsExpanded = false;
       const compact = appearance.display_all_products !== true && nextCart.items.length > compactProductLimit;
+      const indexedItems = nextCart.items.map((item, index) => ({
+        item,
+        line: index + 1,
+        freeGift: isFreeGift(item),
+      }));
+      if (appearance.show_free_gift_first) {
+        indexedItems.sort((left, right) => Number(right.freeGift) - Number(left.freeGift));
+      }
       const visibleItems = compact && !productsExpanded
-        ? nextCart.items.slice(0, compactProductLimit)
-        : nextCart.items;
-      items.replaceChildren(...visibleItems.map(createCartItem));
+        ? indexedItems.slice(0, compactProductLimit)
+        : indexedItems;
+      items.replaceChildren(...visibleItems.map(({item, line, freeGift}) => createCartItem(item, line, freeGift)));
       viewAllButton.hidden = !compact;
       viewAllButton.setAttribute('aria-expanded', String(productsExpanded));
       const hiddenItemCount = nextCart.items.length - compactProductLimit;
@@ -334,29 +238,11 @@
       empty.hidden = nextCart.item_count > 0;
       items.hidden = nextCart.item_count === 0;
       footer.hidden = nextCart.item_count === 0;
-      const formattedTotal = formatMoney(nextCart.total_price);
-      total.textContent = formattedTotal;
-      breakdownTotal.textContent = formattedTotal;
-      breakdownFinal.textContent = formattedTotal;
-      subtotal.textContent = formatMoney(nextCart.items_subtotal_price ?? nextCart.total_price);
-      const totalDiscount = Number(nextCart.total_discount) || 0;
-      const showSavings = appearance.show_savings !== false && totalDiscount > 0;
-      savings.hidden = !showSavings;
-      savings.textContent = showSavings ? `You saved ${formatMoney(totalDiscount)} on this order` : '';
-      discountRow.hidden = totalDiscount <= 0;
-      discount.textContent = totalDiscount > 0 ? `-${formatMoney(totalDiscount)}` : '';
-      const showBreakdown = appearance.show_estimated_total_breakup !== false;
-      totalRow.hidden = showBreakdown;
-      breakdown.hidden = !showBreakdown;
+      total.textContent = formatMoney(nextCart.total_price);
       updateThemeCounts(nextCart.item_count);
-      updateAnnouncement(nextCart);
-    };
-
-    const renderCartWithPrices = (nextCart) => {
-      renderCart(nextCart);
-      loadCompareAtPrices(nextCart).then((updated) => {
-        if (updated && cart === nextCart) renderCart(nextCart);
-      });
+      document.dispatchEvent(new CustomEvent('gokwik:cart:rendered', {
+        detail: {cart: nextCart, root},
+      }));
     };
 
     const loadCart = async ({announce = false} = {}) => {
@@ -370,7 +256,7 @@
         if (!response.ok) throw new Error(`Cart request failed (${response.status})`);
         const nextCart = await response.json();
         if (sequence !== requestSequence) return;
-        renderCartWithPrices(nextCart);
+        renderCart(nextCart);
         setNotice(announce ? 'Cart updated.' : '');
       } catch (error) {
         if (sequence !== requestSequence) return;
@@ -395,7 +281,6 @@
       root.classList.remove('gk-cart-root--open');
       drawer.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('gk-cart-page-locked');
-      window.clearInterval(announcementTimer);
       if (previousFocus instanceof HTMLElement) previousFocus.focus();
       document.dispatchEvent(new CustomEvent('gokwik:cart:closed'));
     };
@@ -411,7 +296,7 @@
           body: JSON.stringify({line, quantity}),
         });
         if (!response.ok) throw new Error(`Cart update failed (${response.status})`);
-        renderCartWithPrices(await response.json());
+        renderCart(await response.json());
         setNotice(quantity === 0 ? 'Item removed.' : 'Cart updated.');
       } catch (error) {
         setNotice('That change could not be saved. Please try again.', true);
@@ -511,6 +396,24 @@
       if (response.ok && isCartPath(url, cartAddUrl)) announceAddToCart('fetch');
       return response;
     };
+
+    const gokwikCartApi = Object.freeze({
+      root,
+      configuration: Object.freeze({...appearance}),
+      open: openCart,
+      close: closeCart,
+      refresh: () => loadCart({announce: true}),
+      getCart: () => cart,
+      on: (eventName, listener) => {
+        document.addEventListener(eventName, listener);
+        return () => document.removeEventListener(eventName, listener);
+      },
+    });
+    Object.defineProperty(window, 'gokwikCart', {
+      configurable: true,
+      value: gokwikCartApi,
+    });
+    document.dispatchEvent(new CustomEvent('gokwik:cart:ready', {detail: {api: gokwikCartApi}}));
 
     continueButton.addEventListener('click', closeCart);
     window.addEventListener('pageshow', () => loadCart());

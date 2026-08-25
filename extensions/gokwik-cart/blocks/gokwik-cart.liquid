@@ -5,6 +5,8 @@
 {% assign continue_link = appearance.empty_cta_url | default: block.settings.continue_link %}
 {% assign checkout_label = appearance.checkout_text.text | default: block.settings.checkout_label %}
 
+<script src="{{ 'gokwik-cart-extras.js' | asset_url }}" defer="defer"></script>
+
 <div
   class="gk-cart-root"
   data-gokwik-cart-root
