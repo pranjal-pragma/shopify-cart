@@ -17,6 +17,22 @@ def validate_hex_color(value: str) -> str:
 HexColor = Annotated[str, AfterValidator(validate_hex_color)]
 
 
+def validate_css_selector(value: str) -> str:
+    value = value.strip()
+    if not value:
+        raise ValueError("selector cannot be empty")
+    if any(character in value for character in "{};\n\r"):
+        raise ValueError("must be a single CSS selector")
+    return value
+
+
+CssSelector = Annotated[
+    str,
+    Field(min_length=1, max_length=240),
+    AfterValidator(validate_css_selector),
+]
+
+
 class HealthResponse(BaseModel):
     status: str
 
@@ -125,6 +141,33 @@ class CartAppearanceConfiguration(BaseModel):
     footer_text: RichTextStyle
     footer_alignment: Literal["left", "center", "right"] = "left"
     custom_script: str = Field(default="", max_length=20_000)
+    add_to_cart_behavior: Literal["open_cart", "confirmation", "nothing"] = "nothing"
+    use_theme_add_to_cart_handling: bool = False
+    custom_cart_icon_selectors: list[CssSelector] = Field(default_factory=list, max_length=12)
+    custom_cart_drawer_selectors: list[CssSelector] = Field(default_factory=list, max_length=12)
+    sticky_cart_enabled: bool = False
+    scarcity_timer_enabled: bool = False
+    scarcity_timer_minutes: int = Field(default=10, ge=1, le=120)
+    scarcity_timer_text: str = Field(
+        default="Your cart is reserved for {time}", min_length=1, max_length=120
+    )
+    allow_free_item_quantity_changes: bool = False
+    block_cart_page_redirection: bool = True
+    disable_checkout_for_upsell_only: bool = False
+    disable_on_non_indian_store: bool = False
+    terms_checkbox_enabled: bool = False
+    terms_checkbox_text: str = Field(
+        default="I agree to the Terms & Conditions", min_length=1, max_length=160
+    )
+    terms_checkbox_url: str = Field(default="/policies/terms-of-service", max_length=2048)
+    product_quantity_limit_enabled: bool = False
+    quantity_limit_variant_id: str | None = Field(
+        default=None, pattern=r"^gid://shopify/ProductVariant/[0-9]+$"
+    )
+    quantity_limit_variant_title: str = Field(default="", max_length=200)
+    product_quantity_limit: int = Field(default=1, ge=1, le=99)
+    variant_selection_enabled: bool = True
+    product_click_behavior: Literal["nothing", "redirect", "modal"] = "nothing"
 
     @model_validator(mode="after")
     def validate_banner_modes(self) -> CartAppearanceConfiguration:
@@ -138,6 +181,16 @@ class CartAppearanceConfiguration(BaseModel):
             for condition in banner.conditions
         ):
             raise ValueError("advanced banner condition values cannot be empty")
+        for url in (self.empty_cta_url, self.terms_checkbox_url):
+            if not url.startswith("/") and not url.lower().startswith(("http://", "https://")):
+                raise ValueError("links must be store paths or HTTP(S) URLs")
+        if any(
+            selector.lower() in {"*", "html", "body", ":root"}
+            for selector in self.custom_cart_drawer_selectors
+        ):
+            raise ValueError("custom drawer selectors cannot target the document root")
+        if self.product_quantity_limit_enabled and self.quantity_limit_variant_id is None:
+            raise ValueError("select a product variant before enabling its quantity limit")
         return self
 
 

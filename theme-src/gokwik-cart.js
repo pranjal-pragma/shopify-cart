@@ -20,10 +20,8 @@
     const nativeFetch = window.fetch.bind(window);
     const routesRoot = window.Shopify?.routes?.root || '/';
     const cartUrl = root.dataset.cartUrl || `${routesRoot}cart`;
-    const cartAddUrl = root.dataset.cartAddUrl || `${routesRoot}cart/add`;
     const cartChangeUrl = root.dataset.cartChangeUrl || `${routesRoot}cart/change`;
     const cartJsonUrl = `${cartUrl.replace(/\/$/, '')}.js`;
-    const openOnAdd = root.dataset.openOnAdd === 'true';
     const currency = root.dataset.currency || window.Shopify?.currency?.active || 'USD';
     let appearance = {};
     try {
@@ -31,11 +29,15 @@
     } catch (error) {
       console.error('[GoKwik Cart] Unable to read published appearance', error);
     }
+    const country = root.dataset.country || window.Shopify?.country || '';
+    if (appearance.disable_on_non_indian_store && country && country !== 'IN') {
+      root.remove();
+      return;
+    }
 
     let cart = null;
     let previousFocus = null;
     let requestSequence = 0;
-    let submitTimer = null;
     let productsExpanded = false;
     const compactProductLimit = 3;
 
@@ -306,22 +308,6 @@
       }
     };
 
-    const isCartPath = (value, expectedPath) => {
-      try {
-        const normalizePath = (path) => path.replace(/\.(js|json)$/, '').replace(/\/$/, '');
-        return normalizePath(new URL(value, window.location.origin).pathname) === normalizePath(expectedPath);
-      } catch {
-        return false;
-      }
-    };
-
-    const announceAddToCart = (source) => {
-      if (source === 'fetch') clearTimeout(submitTimer);
-      document.dispatchEvent(new CustomEvent('KwikCartAtcButtonClicked', {detail: {source}}));
-      if (openOnAdd) openCart();
-      else loadCart();
-    };
-
     root.addEventListener('click', (event) => {
       if (!(event.target instanceof Element)) return;
       const closeTarget = event.target.closest('[data-gk-close]');
@@ -347,18 +333,6 @@
       changeLine(line, Math.max(0, quantity));
     });
 
-    document.addEventListener('click', (event) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      if (!(event.target instanceof Element)) return;
-      const target = event.target.closest('a[href], [data-cart-icon-bubble], #cart-icon-bubble');
-      if (!target || root.contains(target)) return;
-      const href = target.getAttribute('href');
-      if (href && !isCartPath(href, cartUrl)) return;
-      if (!href && !target.matches('[data-cart-icon-bubble], #cart-icon-bubble')) return;
-      event.preventDefault();
-      openCart();
-    });
-
     document.addEventListener('keydown', (event) => {
       if (!root.classList.contains('gk-cart-root--open')) return;
       if (event.key === 'Escape') {
@@ -382,27 +356,13 @@
       }
     });
 
-    document.addEventListener('submit', (event) => {
-      const form = event.target;
-      if (!(form instanceof HTMLFormElement) || !isCartPath(form.action, cartAddUrl)) return;
-      clearTimeout(submitTimer);
-      submitTimer = setTimeout(() => announceAddToCart('form'), 450);
-    });
-
-    window.fetch = async (...args) => {
-      const request = args[0];
-      const url = typeof request === 'string' || request instanceof URL ? String(request) : request.url;
-      const response = await nativeFetch(...args);
-      if (response.ok && isCartPath(url, cartAddUrl)) announceAddToCart('fetch');
-      return response;
-    };
-
     const gokwikCartApi = Object.freeze({
       root,
       configuration: Object.freeze({...appearance}),
       open: openCart,
       close: closeCart,
       refresh: () => loadCart({announce: true}),
+      sync: () => loadCart(),
       getCart: () => cart,
       on: (eventName, listener) => {
         document.addEventListener(eventName, listener);

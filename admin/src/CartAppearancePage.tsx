@@ -7,6 +7,7 @@ import {
   Gift,
   Italic,
   Minus,
+  PackageSearch,
   Plus,
   RotateCcw,
   ShieldCheck,
@@ -87,6 +88,27 @@ export const defaultAppearance: CartAppearanceConfiguration = {
   footer_text: defaultRichText('Secure checkout powered by GoKwik', 12),
   footer_alignment: 'left',
   custom_script: '',
+  add_to_cart_behavior: 'nothing',
+  use_theme_add_to_cart_handling: false,
+  custom_cart_icon_selectors: [],
+  custom_cart_drawer_selectors: [],
+  sticky_cart_enabled: false,
+  scarcity_timer_enabled: false,
+  scarcity_timer_minutes: 10,
+  scarcity_timer_text: 'Your cart is reserved for {time}',
+  allow_free_item_quantity_changes: false,
+  block_cart_page_redirection: true,
+  disable_checkout_for_upsell_only: false,
+  disable_on_non_indian_store: false,
+  terms_checkbox_enabled: false,
+  terms_checkbox_text: 'I agree to the Terms & Conditions',
+  terms_checkbox_url: '/policies/terms-of-service',
+  product_quantity_limit_enabled: false,
+  quantity_limit_variant_id: null,
+  quantity_limit_variant_title: '',
+  product_quantity_limit: 1,
+  variant_selection_enabled: true,
+  product_click_behavior: 'nothing',
 };
 
 function cloneConfiguration(configuration: CartAppearanceConfiguration) {
@@ -197,6 +219,98 @@ function Field({label, value, onChange, placeholder, type = 'text'}: {label: str
   );
 }
 
+function SelectorList({label, description, selectors, onChange}: {label: string; description: string; selectors: string[]; onChange: (selectors: string[]) => void}) {
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const add = () => {
+    const selector = draft.trim();
+    if (!selector) return;
+    try {
+      document.createDocumentFragment().querySelector(selector);
+    } catch {
+      setError('Enter a valid CSS selector.');
+      return;
+    }
+    if (selectors.includes(selector)) {
+      setError('This selector is already in the list.');
+      return;
+    }
+    onChange([...selectors, selector]);
+    setDraft('');
+    setError(null);
+  };
+
+  return (
+    <div className="selector-list">
+      <div className="selector-list__heading"><strong>{label}</strong><small>{description}</small></div>
+      {selectors.length > 0 && <ul>{selectors.map((selector) => <li key={selector}><code>{selector}</code><button className="icon-button icon-button--danger" type="button" onClick={() => onChange(selectors.filter((item) => item !== selector))} aria-label={`Remove ${selector}`} title="Remove selector"><Trash2 size={15} /></button></li>)}</ul>}
+      <div className="selector-list__add">
+        <label className="field"><span>New selector</span><input value={draft} placeholder=".header__icon--cart" maxLength={240} onChange={(event) => { setDraft(event.target.value); setError(null); }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} /></label>
+        <button className="button button--secondary" type="button" onClick={add} disabled={!draft.trim() || selectors.length >= 12}><Plus size={16} />Add</button>
+      </div>
+      {error && <small className="field-error" role="alert">{error}</small>}
+    </div>
+  );
+}
+
+type ConfigurationUpdate = <K extends keyof CartAppearanceConfiguration>(key: K, value: CartAppearanceConfiguration[K]) => void;
+
+function CartSettingsEditor({configuration, update, previewMode}: {configuration: CartAppearanceConfiguration; update: ConfigurationUpdate; previewMode: boolean}) {
+  const pickVariant = async () => {
+    if (!window.shopify?.resourcePicker) return;
+    const selected = await window.shopify.resourcePicker({
+      type: 'variant',
+      action: 'select',
+      multiple: false,
+      selectionIds: configuration.quantity_limit_variant_id ? [{id: configuration.quantity_limit_variant_id}] : undefined,
+    });
+    const variant = selected?.[0];
+    if (!variant) return;
+    update('quantity_limit_variant_id', variant.id);
+    update('quantity_limit_variant_title', variant.displayName || variant.title || variant.id);
+  };
+
+  return <>
+    <EditorSection title="Add-to-cart behavior" description="Choose what shoppers see immediately after an item is added.">
+      <div className="choice-list" role="radiogroup" aria-label="Add-to-cart behavior">
+        {[{value: 'open_cart', label: 'Open side cart', description: 'Open the drawer and refresh its contents.'}, {value: 'confirmation', label: 'Show confirmation message', description: 'Keep the shopper on the page and show a compact confirmation.'}, {value: 'nothing', label: 'Do nothing', description: 'Leave the current storefront state unchanged.'}].map((option) => <label key={option.value}><input type="radio" name="add-to-cart-behavior" checked={configuration.add_to_cart_behavior === option.value} onChange={() => update('add_to_cart_behavior', option.value as CartAppearanceConfiguration['add_to_cart_behavior'])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}
+      </div>
+      <Toggle checked={configuration.use_theme_add_to_cart_handling} label="Use your own add-to-cart handling" description="Leave add-to-cart responses entirely to the storefront theme." onChange={(value) => update('use_theme_add_to_cart_handling', value)} />
+    </EditorSection>
+
+    <EditorSection title="Custom selectors" description="Add selectors only when your theme elements are not detected automatically.">
+      <SelectorList label="Custom cart icon selectors" description="Open GoKwik Cart when these theme elements are selected." selectors={configuration.custom_cart_icon_selectors} onChange={(value) => update('custom_cart_icon_selectors', value)} />
+      <SelectorList label="Custom cart drawer selectors" description="Hide matching native cart drawers while GoKwik Cart is active." selectors={configuration.custom_cart_drawer_selectors} onChange={(value) => update('custom_cart_drawer_selectors', value)} />
+    </EditorSection>
+
+    <EditorSection title="Sticky cart and urgency">
+      <Toggle checked={configuration.sticky_cart_enabled} label="Sticky cart" description="Show cart quantity and price at the bottom of mobile screens, except product pages." onChange={(value) => update('sticky_cart_enabled', value)} />
+      <Toggle checked={configuration.scarcity_timer_enabled} label="Scarcity timer banner" description="Show a reservation countdown while the cart contains products." onChange={(value) => update('scarcity_timer_enabled', value)} />
+      {configuration.scarcity_timer_enabled && <div className="nested-settings"><Field label="Timer duration (minutes)" type="number" value={configuration.scarcity_timer_minutes} onChange={(value) => update('scarcity_timer_minutes', Math.min(120, Math.max(1, Number(value))))} /><Field label="Banner text" value={configuration.scarcity_timer_text} placeholder="Your cart is reserved for {time}" onChange={(value) => update('scarcity_timer_text', value)} /><p className="field-help">Use <code>{'{time}'}</code> where the countdown should appear.</p></div>}
+    </EditorSection>
+
+    <EditorSection title="Cart integrity and routing">
+      <Toggle checked={configuration.allow_free_item_quantity_changes} label="Allow quantity changes on free items" onChange={(value) => update('allow_free_item_quantity_changes', value)} />
+      <Toggle checked={configuration.block_cart_page_redirection} label="Block cart page redirection" description="Open the side cart when shoppers navigate to Shopify's cart page." onChange={(value) => update('block_cart_page_redirection', value)} />
+      <Toggle checked={configuration.disable_checkout_for_upsell_only} label="Disable checkout for only upsell items" description="Require at least one regular cart item before checkout." onChange={(value) => update('disable_checkout_for_upsell_only', value)} />
+      <Toggle checked={configuration.disable_on_non_indian_store} label="Disable on non-Indian store" description="Keep the theme's own cart active outside the India storefront." onChange={(value) => update('disable_on_non_indian_store', value)} />
+    </EditorSection>
+
+    <EditorSection title="Consent and purchase limits">
+      <Toggle checked={configuration.terms_checkbox_enabled} label="Terms & Conditions checkbox" description="Require consent before the checkout button is available." onChange={(value) => update('terms_checkbox_enabled', value)} />
+      {configuration.terms_checkbox_enabled && <div className="nested-settings"><Field label="Checkbox text" value={configuration.terms_checkbox_text} onChange={(value) => update('terms_checkbox_text', value)} /><Field label="Terms link" type="url" value={configuration.terms_checkbox_url} placeholder="/policies/terms-of-service" onChange={(value) => update('terms_checkbox_url', value)} /></div>}
+      <Toggle checked={configuration.product_quantity_limit_enabled} label="Set quantity limit for single product purchases" description="Cap one selected product variant at a fixed quantity." onChange={(value) => update('product_quantity_limit_enabled', value)} />
+      {configuration.product_quantity_limit_enabled && <div className="nested-settings quantity-limit-settings"><div className="field"><span>Product variant</span>{configuration.quantity_limit_variant_id ? <div className="selected-resource"><span><strong>{configuration.quantity_limit_variant_title || 'Selected variant'}</strong><small>{configuration.quantity_limit_variant_id}</small></span><button className="icon-button" type="button" onClick={() => { update('quantity_limit_variant_id', null); update('quantity_limit_variant_title', ''); }} aria-label="Clear selected variant" title="Clear selection"><X size={16} /></button></div> : <button className="button button--secondary resource-picker-button" type="button" onClick={pickVariant} disabled={previewMode || !window.shopify?.resourcePicker}><PackageSearch size={17} />Select product variant</button>}</div><Field label="Maximum quantity" type="number" value={configuration.product_quantity_limit} onChange={(value) => update('product_quantity_limit', Math.min(99, Math.max(1, Number(value))))} /></div>}
+    </EditorSection>
+
+    <EditorSection title="Variant and product interactions">
+      <Toggle checked={configuration.variant_selection_enabled} label="Variant selection dropdown" description="Let shoppers change product variants from the side cart." onChange={(value) => update('variant_selection_enabled', value)} />
+      <div className="field"><span>Product click behavior</span><div className="choice-list choice-list--compact" role="radiogroup" aria-label="Product click behavior">{[{value: 'nothing', label: 'Do nothing'}, {value: 'redirect', label: 'Redirect to product page'}, {value: 'modal', label: 'Open product in a modal'}].map((option) => <label key={option.value}><input type="radio" name="product-click-behavior" checked={configuration.product_click_behavior === option.value} onChange={() => update('product_click_behavior', option.value as CartAppearanceConfiguration['product_click_behavior'])} /><span><strong>{option.label}</strong></span></label>)}</div></div>
+    </EditorSection>
+  </>;
+}
+
 function PreviewText({value}: {value: RichTextStyle}) {
   return (
     <span style={{fontSize: value.font_size, fontWeight: value.bold ? 700 : 400, fontStyle: value.italic ? 'italic' : 'normal', textDecoration: value.underline ? 'underline' : 'none'}}>
@@ -294,6 +408,7 @@ function CartPreview({configuration, empty}: {configuration: CartAppearanceConfi
         <div><strong>Your cart</strong><span>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span></div>
         <button type="button" aria-label="Close cart preview"><X size={19} /></button>
       </div>
+      {configuration.scarcity_timer_enabled && !effectiveEmpty && <div className="preview-scarcity">{configuration.scarcity_timer_text.replace('{time}', `${configuration.scarcity_timer_minutes}:00`)}</div>}
 
       {effectiveEmpty ? (
         <div className="preview-empty">
@@ -311,7 +426,7 @@ function CartPreview({configuration, empty}: {configuration: CartAppearanceConfi
             {configuration.show_free_gift_first && itemCount > 0 && (
               <div className="preview-product preview-product--gift">
                 <div className="preview-product-image preview-product-image--gift" style={{backgroundColor: accentTint, color: configuration.theme_color}}><Gift size={20} /></div>
-                <div><span className="free-label" style={{color: configuration.theme_color}}>FREE GIFT</span><strong>Travel pouch</strong><small>Complimentary</small></div>
+                <div><span className="free-label" style={{color: configuration.theme_color}}>FREE GIFT</span><strong>Travel pouch</strong><small>Complimentary</small>{configuration.allow_free_item_quantity_changes && <div className="preview-quantity preview-quantity--gift"><button type="button"><Minus size={11} /></button><span>1</span><button type="button"><Plus size={11} /></button></div>}</div>
                 <strong>Rs. 0</strong>
               </div>
             )}
@@ -319,7 +434,7 @@ function CartPreview({configuration, empty}: {configuration: CartAppearanceConfi
               <div className="preview-product-image" />
               <div>
                 <strong>Everyday tote</strong>
-                {configuration.show_variant_names && <small>Black / Medium</small>}
+                {configuration.show_variant_names && (configuration.variant_selection_enabled ? <select className="preview-variant" defaultValue="black-medium" aria-label="Everyday tote variant"><option value="black-medium">Black / Medium</option><option value="olive-medium">Olive / Medium</option></select> : <small>Black / Medium</small>)}
                 {configuration.show_item_properties && <small>Monogram: PR</small>}
                 <div className="preview-line-actions"><div className="preview-quantity"><button type="button" aria-label="Decrease quantity"><Minus size={12} /></button><span>1</span><button type="button" aria-label="Increase quantity"><Plus size={12} /></button></div><button className="preview-remove" type="button" aria-label="Remove Everyday tote from cart" title="Remove item" onClick={() => removeItem('tote')}><Trash2 size={14} /></button></div>
               </div>
@@ -334,6 +449,7 @@ function CartPreview({configuration, empty}: {configuration: CartAppearanceConfi
           <div className="preview-checkout">
             {configuration.show_savings && <div className="preview-saving" style={{backgroundColor: accentTint, color: configuration.theme_color}}>You save Rs. 250 on this order</div>}
             <div className="preview-total"><span>Estimated total</span><strong>Rs. {total.toLocaleString('en-IN')} {configuration.show_estimated_total_breakup && <ChevronDown size={14} />}</strong></div>
+            {configuration.terms_checkbox_enabled && <label className="preview-terms"><input type="checkbox" /><span>{configuration.terms_checkbox_text}</span></label>}
             <button className="preview-checkout-button" type="button" style={{backgroundColor: configuration.checkout_background, color: configuration.checkout_text_color, textAlign: configuration.checkout_alignment}}>
               <span><PreviewText value={configuration.checkout_text} />{configuration.checkout_subtext_enabled && <small><PreviewText value={configuration.checkout_subtext} /></small>}</span>
               <span>Rs. {total.toLocaleString('en-IN')}</span>
@@ -343,6 +459,7 @@ function CartPreview({configuration, empty}: {configuration: CartAppearanceConfi
           </div>
         </>
       )}
+      {configuration.sticky_cart_enabled && !effectiveEmpty && <div className="preview-sticky-cart" style={{backgroundColor: configuration.theme_color}}><span><ShoppingBag size={16} />{itemCount} items</span><strong>Rs. {total.toLocaleString('en-IN')}</strong></div>}
     </aside>
   );
 }
@@ -394,6 +511,15 @@ function validate(configuration: CartAppearanceConfiguration): string | null {
   if (configuration.advanced_conditions && configuration.banners.some((banner) => !banner.conditions.length)) return 'Every advanced banner needs at least one condition.';
   if (configuration.advanced_conditions && configuration.banners.some((banner) => banner.conditions.some((condition) => !condition.value.trim()))) return 'Enter a value for every advanced banner condition.';
   if (/<script\b|javascript:/i.test(configuration.custom_script)) return 'Paste script contents only; script tags and javascript: URLs are not accepted.';
+  const selectorLists = [...configuration.custom_cart_icon_selectors, ...configuration.custom_cart_drawer_selectors];
+  for (const selector of selectorLists) {
+    try { document.createDocumentFragment().querySelector(selector); } catch { return `Invalid CSS selector: ${selector}`; }
+  }
+  if (configuration.custom_cart_drawer_selectors.some((selector) => ['*', 'html', 'body', ':root'].includes(selector.toLowerCase()))) return 'Custom drawer selectors cannot target the entire document.';
+  if (configuration.scarcity_timer_enabled && !configuration.scarcity_timer_text.includes('{time}')) return 'Scarcity timer text must include {time}.';
+  if (configuration.terms_checkbox_enabled && !configuration.terms_checkbox_text.trim()) return 'Terms checkbox text cannot be empty.';
+  if (configuration.terms_checkbox_enabled && !configuration.terms_checkbox_url.startsWith('/') && !/^https?:\/\//i.test(configuration.terms_checkbox_url)) return 'The terms link must be a store path or an HTTP(S) URL.';
+  if (configuration.product_quantity_limit_enabled && !configuration.quantity_limit_variant_id) return 'Select a product variant for the quantity limit.';
   return null;
 }
 
@@ -405,6 +531,7 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [emptyPreview, setEmptyPreview] = useState(false);
+  const [activeTab, setActiveTab] = useState<'appearance' | 'settings'>('appearance');
   const dirty = useMemo(() => JSON.stringify(configuration) !== JSON.stringify(saved), [configuration, saved]);
 
   useEffect(() => {
@@ -443,7 +570,7 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
     try {
       if (!previewMode) await saveCartAppearance(configuration);
       setSaved(cloneConfiguration(configuration));
-      setNotice('Cart appearance saved.');
+      setNotice('Cart configuration saved.');
       window.setTimeout(() => setNotice(null), 2600);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not save cart appearance.');
@@ -476,17 +603,18 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
   return (
     <div className="appearance-page">
       <header className="appearance-header">
-        <div><p className="eyebrow">Cart appearance &amp; settings</p><h1>Design your cart</h1><p>Set the visual language customers see in the cart drawer.</p></div>
+        <div><p className="eyebrow">Cart appearance &amp; settings</p><h1>{activeTab === 'appearance' ? 'Design your cart' : 'Configure cart behavior'}</h1><p>{activeTab === 'appearance' ? 'Set the visual language customers see in the cart drawer.' : 'Control add-to-cart handling, routing, limits, and storefront interactions.'}</p></div>
         <div className="preview-state-switch" role="group" aria-label="Preview state"><button type="button" className={!emptyPreview ? 'is-active' : ''} onClick={() => setEmptyPreview(false)}>With items</button><button type="button" className={emptyPreview ? 'is-active' : ''} onClick={() => setEmptyPreview(true)}>Empty</button></div>
       </header>
 
-      <nav className="appearance-tabs" aria-label="Cart appearance views"><a className="is-active" href="#appearance" aria-current="page">Appearance</a><span aria-disabled="true">Cart settings</span></nav>
+      <nav className="appearance-tabs" aria-label="Cart appearance views"><button className={activeTab === 'appearance' ? 'is-active' : ''} type="button" aria-current={activeTab === 'appearance' ? 'page' : undefined} onClick={() => setActiveTab('appearance')}>Appearance</button><button className={activeTab === 'settings' ? 'is-active' : ''} type="button" aria-current={activeTab === 'settings' ? 'page' : undefined} onClick={() => setActiveTab('settings')}>Cart settings</button></nav>
 
       {error && <div className="inline-alert" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       {notice && <div className="save-toast" role="status"><ShieldCheck size={17} />{notice}</div>}
 
       <div className="appearance-workspace">
         <div className="appearance-editor">
+          {activeTab === 'appearance' ? <>
           <EditorSection title="Font style">
             <div className="choice-list" role="radiogroup" aria-label="Font style">
               <label><input type="radio" name="font" checked={configuration.font_source === 'gokwik'} onChange={() => update('font_source', 'gokwik')} /><span><strong>Default GoKwik Cart font</strong><small>Clean, neutral interface typeface</small></span></label>
@@ -546,6 +674,7 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
           <EditorSection title="Custom script" description="Runs inside the cart drawer after saved configuration is published.">
             <label className="field"><span>Script contents</span><textarea rows={7} value={configuration.custom_script} maxLength={20000} spellCheck={false} placeholder="// Optional cart customization" onChange={(event) => update('custom_script', event.target.value)} /><small>{configuration.custom_script.length.toLocaleString()} / 20,000</small></label>
           </EditorSection>
+          </> : <CartSettingsEditor configuration={configuration} update={update} previewMode={previewMode} />}
         </div>
 
         <div className="preview-column"><div className="preview-column__heading"><span>Live preview</span><small>{emptyPreview ? 'Empty cart' : 'Cart with products'}</small></div><CartPreview configuration={configuration} empty={emptyPreview} /></div>

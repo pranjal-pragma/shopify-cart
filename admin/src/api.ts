@@ -65,6 +65,27 @@ export interface CartAppearanceConfiguration {
   footer_text: RichTextStyle;
   footer_alignment: 'left' | 'center' | 'right';
   custom_script: string;
+  add_to_cart_behavior: 'open_cart' | 'confirmation' | 'nothing';
+  use_theme_add_to_cart_handling: boolean;
+  custom_cart_icon_selectors: string[];
+  custom_cart_drawer_selectors: string[];
+  sticky_cart_enabled: boolean;
+  scarcity_timer_enabled: boolean;
+  scarcity_timer_minutes: number;
+  scarcity_timer_text: string;
+  allow_free_item_quantity_changes: boolean;
+  block_cart_page_redirection: boolean;
+  disable_checkout_for_upsell_only: boolean;
+  disable_on_non_indian_store: boolean;
+  terms_checkbox_enabled: boolean;
+  terms_checkbox_text: string;
+  terms_checkbox_url: string;
+  product_quantity_limit_enabled: boolean;
+  quantity_limit_variant_id: string | null;
+  quantity_limit_variant_title: string;
+  product_quantity_limit: number;
+  variant_selection_enabled: boolean;
+  product_click_behavior: 'nothing' | 'redirect' | 'modal';
 }
 
 export interface CartAppearanceResponse extends CartAppearanceConfiguration {
@@ -73,6 +94,12 @@ export interface CartAppearanceResponse extends CartAppearanceConfiguration {
 
 interface ShopifyGlobal {
   idToken(): Promise<string>;
+  resourcePicker(options: {
+    type: 'variant';
+    action?: 'add' | 'select';
+    multiple?: boolean | number;
+    selectionIds?: {id: string}[];
+  }): Promise<{id: string; title?: string; displayName?: string}[] | undefined>;
 }
 
 declare global {

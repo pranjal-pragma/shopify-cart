@@ -144,11 +144,16 @@ async def test_cart_appearance_defaults_and_persists_per_shop(
     configuration = default_response.json()
     assert configuration["theme_color"] == "#F10A0A"
     assert configuration["advanced_conditions"] is False
+    assert configuration["add_to_cart_behavior"] == "nothing"
+    assert configuration["block_cart_page_redirection"] is True
+    assert configuration["variant_selection_enabled"] is True
     assert configuration["updated_at"] is None
 
     configuration.pop("updated_at")
     configuration["theme_color"] = "#146B4A"
     configuration["empty_title"] = "Nothing here yet"
+    configuration["add_to_cart_behavior"] = "confirmation"
+    configuration["custom_cart_icon_selectors"] = [".header-cart"]
     saved_response = await client.put(
         "/api/v1/shopify/appearance", headers=first_headers, json=configuration
     )
@@ -158,6 +163,8 @@ async def test_cart_appearance_defaults_and_persists_per_shop(
 
     reloaded = await client.get("/api/v1/shopify/appearance", headers=first_headers)
     assert reloaded.json()["empty_title"] == "Nothing here yet"
+    assert reloaded.json()["add_to_cart_behavior"] == "confirmation"
+    assert reloaded.json()["custom_cart_icon_selectors"] == [".header-cart"]
 
     second_headers = {
         "Authorization": f"Bearer {make_session_token(settings, 'second.myshopify.com')}"
@@ -193,6 +200,28 @@ async def test_cart_appearance_rejects_conflicting_banner_modes(
         "/api/v1/shopify/appearance", headers=headers, json=configuration
     )
     assert response.status_code == 422
+
+
+async def test_cart_settings_reject_invalid_selectors_and_incomplete_quantity_limit(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration["custom_cart_icon_selectors"] = [".cart { display: none; }"]
+
+    invalid_selector = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert invalid_selector.status_code == 422
+
+    configuration["custom_cart_icon_selectors"] = []
+    configuration["product_quantity_limit_enabled"] = True
+    configuration["quantity_limit_variant_id"] = None
+    incomplete_limit = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert incomplete_limit.status_code == 422
 
 
 async def test_cart_appearance_persists_advanced_banner_conditions(

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "esbuild gokwik-cart.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart.js && esbuild gokwik-cart-extras.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-extras.js"
+    "build": "esbuild gokwik-cart.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart.js && esbuild gokwik-cart-extras.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-extras.js && esbuild gokwik-cart-settings.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-settings.js"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"
