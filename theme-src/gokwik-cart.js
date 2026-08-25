@@ -123,7 +123,7 @@
     const isFreeGift = (item) => {
       const marker = item.properties?._gokwik_free_gift;
       const marked = marker === true || ['true', '1', 'yes'].includes(String(marker).toLowerCase());
-      const fullyDiscounted = Number(item.original_line_price) > 0 && Number(item.final_line_price) === 0;
+      const fullyDiscounted = Number(item.final_line_price) === 0;
       return marked || fullyDiscounted;
     };
 
@@ -182,14 +182,20 @@
       const quantity = document.createElement('div');
       quantity.className = 'gk-cart-quantity';
       quantity.setAttribute('aria-label', `Quantity for ${item.product_title}`);
-      quantity.append(
-        createButton(`Decrease ${item.product_title} quantity`, 'decrease', line, '\u2212'),
-      );
+      const decrease = createButton(`Decrease ${item.product_title} quantity`, 'decrease', line, '\u2212');
+      const increase = createButton(`Increase ${item.product_title} quantity`, 'increase', line, '+');
+      if (freeGift && appearance.allow_free_item_quantity_changes !== true) {
+        [decrease, increase].forEach((button) => {
+          button.disabled = true;
+          button.title = 'Quantity is fixed for free items';
+        });
+      }
+      quantity.append(decrease);
       const quantityValue = document.createElement('span');
       quantityValue.className = 'gk-cart-quantity-value';
       quantityValue.textContent = String(item.quantity);
       quantityValue.setAttribute('aria-live', 'polite');
-      quantity.append(quantityValue, createButton(`Increase ${item.product_title} quantity`, 'increase', line, '+'));
+      quantity.append(quantityValue, increase);
 
       const remove = document.createElement('button');
       remove.type = 'button';
@@ -329,6 +335,11 @@
       const currentItem = cart.items[line - 1];
       if (!currentItem) return;
       const action = actionTarget.dataset.gkAction;
+      if (
+        action !== 'remove'
+        && isFreeGift(currentItem)
+        && appearance.allow_free_item_quantity_changes !== true
+      ) return;
       const quantity = action === 'remove' ? 0 : currentItem.quantity + (action === 'increase' ? 1 : -1);
       changeLine(line, Math.max(0, quantity));
     });

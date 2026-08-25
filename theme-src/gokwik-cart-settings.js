@@ -223,13 +223,6 @@
       root.querySelectorAll('[data-gk-line]').forEach((row) => {
         const item = nextCart.items[Number(row.dataset.gkLine) - 1];
         if (!item) return;
-        const buttons = row.querySelectorAll('.gk-cart-quantity-button');
-        if (row.classList.contains('gk-cart-item--gift') && !configuration.allow_free_item_quantity_changes) {
-          buttons.forEach((button) => {
-            button.disabled = true;
-            button.title = 'Quantity is fixed for free items';
-          });
-        }
         if (configuration.product_quantity_limit_enabled && Number(item.variant_id) === selectedVariantId && item.quantity >= configuration.product_quantity_limit) {
           const increase = row.querySelector('[data-gk-action="increase"]');
           if (increase) {
