@@ -669,7 +669,7 @@ p {
 }
 
 .setting-toggle__copy,
-.choice-list label span,
+.choice-list label > span,
 .disabled-setting > span:first-child {
   display: flex;
   flex-direction: column;
@@ -770,6 +770,23 @@ p {
 .choice-list input {
   accent-color: #238457;
   margin-top: 2px;
+}
+
+.choice-list input[type="radio"] {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  flex: 0 0 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  width: 16px;
+}
+
+.choice-list label > span {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .field {
@@ -979,8 +996,15 @@ p {
 
 .scarcity-duration-unit input[type="checkbox"] {
   accent-color: #303137;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  flex: 0 0 16px;
   height: 16px;
   margin: 0;
+  min-height: 0;
+  padding: 0;
   width: 16px;
 }
 
