@@ -88,7 +88,29 @@
       });
     };
 
+    const hideNativeAddToCartFeedback = () => {
+      if (configuration.use_theme_add_to_cart_handling || configuration.add_to_cart_behavior !== 'nothing') return;
+      [
+        'cart-notification',
+        '#cart-notification',
+        '.cart-notification',
+        '[data-cart-notification]',
+        'cart-drawer',
+        '#CartDrawer',
+        '.cart-drawer',
+        '[data-cart-drawer]',
+      ].forEach((selector) => {
+        document.querySelectorAll(selector).forEach((element) => {
+          if (element !== root && !root.contains(element)) {
+            element.style.setProperty('display', 'none', 'important');
+            element.dataset.gokwikCartHidden = 'true';
+          }
+        });
+      });
+    };
+
     hideNativeDrawers();
+    hideNativeAddToCartFeedback();
     (configuration.custom_cart_icon_selectors || []).forEach((selector) => {
       try {
         if (!document.querySelector(selector)) console.warn(`[GoKwik Cart] Cart icon selector did not match: ${selector}`);
@@ -96,8 +118,14 @@
         // Invalid selectors are reported by the guarded event matcher.
       }
     });
-    if (configuration.custom_cart_drawer_selectors?.length) {
-      new MutationObserver(hideNativeDrawers).observe(document.body, {childList: true, subtree: true});
+    if (configuration.custom_cart_drawer_selectors?.length || (
+      !configuration.use_theme_add_to_cart_handling
+      && configuration.add_to_cart_behavior === 'nothing'
+    )) {
+      new MutationObserver(() => {
+        hideNativeDrawers();
+        hideNativeAddToCartFeedback();
+      }).observe(document.body, {childList: true, subtree: true});
     }
 
     const showConfirmation = () => {
