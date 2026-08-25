@@ -20,7 +20,6 @@
     const stickyCart = root.querySelector('[data-gk-sticky-cart]');
     const stickyCount = root.querySelector('[data-gk-sticky-count]');
     const stickyTotal = root.querySelector('[data-gk-sticky-total]');
-    const scarcity = root.querySelector('[data-gk-scarcity]');
     const terms = root.querySelector('[data-gk-terms]');
     const termsCheckbox = root.querySelector('[data-gk-terms-checkbox]');
     const termsText = root.querySelector('[data-gk-terms-text]');
@@ -40,8 +39,6 @@
     let cart = null;
     let submitTimer = null;
     let confirmationTimer = null;
-    let scarcityTimer = null;
-    let scarcityExpiresAt = null;
 
     const formatMoney = (cents) => {
       try {
@@ -186,48 +183,6 @@
     };
 
     stickyCart.addEventListener('click', api.open);
-
-    const readScarcityExpiry = () => {
-      try {
-        return Number(sessionStorage.getItem('gokwik-cart-scarcity-expires')) || null;
-      } catch {
-        return scarcityExpiresAt;
-      }
-    };
-
-    const writeScarcityExpiry = (value) => {
-      scarcityExpiresAt = value;
-      try {
-        if (value) sessionStorage.setItem('gokwik-cart-scarcity-expires', String(value));
-        else sessionStorage.removeItem('gokwik-cart-scarcity-expires');
-      } catch {
-        // Session storage can be unavailable in privacy modes.
-      }
-    };
-
-    const updateScarcity = (nextCart) => {
-      window.clearInterval(scarcityTimer);
-      scarcity.hidden = !configuration.scarcity_timer_enabled || nextCart.item_count === 0;
-      if (scarcity.hidden) {
-        if (nextCart.item_count === 0) writeScarcityExpiry(null);
-        return;
-      }
-
-      let expiresAt = readScarcityExpiry();
-      if (!expiresAt || expiresAt <= Date.now()) {
-        expiresAt = Date.now() + configuration.scarcity_timer_minutes * 60_000;
-        writeScarcityExpiry(expiresAt);
-      }
-      const render = () => {
-        const remaining = Math.max(0, expiresAt - Date.now());
-        const minutes = String(Math.floor(remaining / 60_000)).padStart(2, '0');
-        const seconds = String(Math.floor((remaining % 60_000) / 1000)).padStart(2, '0');
-        scarcity.textContent = configuration.scarcity_timer_text.replace('{time}', `${minutes}:${seconds}`);
-        if (remaining === 0) window.clearInterval(scarcityTimer);
-      };
-      render();
-      scarcityTimer = window.setInterval(render, 1000);
-    };
 
     let termsAccepted = !configuration.terms_checkbox_enabled;
     if (configuration.terms_checkbox_enabled) {
@@ -396,7 +351,6 @@
       if (event.detail?.root !== root) return;
       cart = event.detail.cart;
       updateStickyCart(cart);
-      updateScarcity(cart);
       updateCheckoutState();
       applyQuantityRules(cart);
       renderVariantSelectors(cart);

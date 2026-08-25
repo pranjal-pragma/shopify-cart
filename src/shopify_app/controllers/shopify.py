@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import cast
 
 import structlog
@@ -110,6 +111,16 @@ async def save_cart_appearance(
     cipher: TokenCipher,
 ) -> CartAppearanceResponse:
     _, shop_domain = auth
+    configuration = configuration.model_copy(
+        update={
+            "scarcity_timer_started_at": (
+                datetime.now(UTC)
+                if configuration.scarcity_timer_enabled
+                and configuration.scarcity_timer_type == "sales"
+                else None
+            )
+        }
+    )
     serialized = configuration.model_dump(mode="json")
     try:
         await publish_cart_appearance(

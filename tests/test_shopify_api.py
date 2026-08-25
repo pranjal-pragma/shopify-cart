@@ -7,7 +7,11 @@ import jwt
 import pytest
 
 from shopify_app.config import Settings
-from shopify_app.schemas import ShopifyInstallationIdentity, TokenExchangeResponse
+from shopify_app.schemas import (
+    CartAppearanceConfiguration,
+    ShopifyInstallationIdentity,
+    TokenExchangeResponse,
+)
 from shopify_app.shopify_client import ShopifyClient
 
 
@@ -147,6 +151,9 @@ async def test_cart_appearance_defaults_and_persists_per_shop(
     assert configuration["add_to_cart_behavior"] == "nothing"
     assert configuration["confirmation_background"] == "#202124"
     assert configuration["confirmation_text_color"] == "#FFFFFF"
+    assert configuration["scarcity_timer_type"] == "urgency"
+    assert configuration["scarcity_timer_title"]["text"] == "Your cart is reserved for"
+    assert configuration["scarcity_timer_started_at"] is None
     assert configuration["block_cart_page_redirection"] is True
     assert configuration["variant_selection_enabled"] is True
     assert configuration["updated_at"] is None
@@ -206,6 +213,61 @@ async def test_cart_appearance_rejects_conflicting_banner_modes(
         "/api/v1/shopify/appearance", headers=headers, json=configuration
     )
     assert response.status_code == 422
+
+
+async def test_cart_appearance_publishes_sales_timer_start_and_rejects_zero_duration(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    configuration = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    configuration.pop("updated_at")
+    configuration.update(
+        {
+            "scarcity_timer_enabled": True,
+            "scarcity_timer_type": "sales",
+            "scarcity_timer_days": 0,
+            "scarcity_timer_hours": 0,
+            "scarcity_timer_minutes": 0,
+            "scarcity_timer_seconds": 30,
+        }
+    )
+
+    saved = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert saved.status_code == 200
+    assert saved.json()["scarcity_timer_started_at"] is not None
+
+    configuration["scarcity_timer_seconds"] = 0
+    invalid = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=configuration
+    )
+    assert invalid.status_code == 422
+
+
+def test_cart_appearance_migrates_legacy_scarcity_text() -> None:
+    configuration = {
+        **CartAppearanceConfiguration.model_validate(
+            {
+                "banners": [
+                    {
+                        "id": "welcome",
+                        "title": {"text": "Welcome"},
+                        "subtext": {"text": ""},
+                    }
+                ],
+                "checkout_text": {"text": "Checkout"},
+                "checkout_subtext": {"text": ""},
+                "footer_text": {"text": "Secure"},
+            }
+        ).model_dump(mode="json"),
+        "scarcity_timer_text": "Complete checkout in {time}",
+    }
+    configuration.pop("scarcity_timer_title")
+
+    migrated = CartAppearanceConfiguration.model_validate(configuration)
+
+    assert migrated.scarcity_timer_title.text == "Complete checkout in"
 
 
 async def test_cart_settings_reject_invalid_selectors_and_incomplete_quantity_limit(

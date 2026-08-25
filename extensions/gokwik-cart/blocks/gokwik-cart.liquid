@@ -7,6 +7,7 @@
 
 <script src="{{ 'gokwik-cart-extras.js' | asset_url }}" defer="defer"></script>
 <script src="{{ 'gokwik-cart-settings.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'gokwik-cart-scarcity.js' | asset_url }}" defer="defer"></script>
 
 <div
   class="gk-cart-root"
@@ -44,7 +45,10 @@
       </button>
     </header>
 
-    <div class="gk-cart-scarcity" data-gk-scarcity role="timer" hidden></div>
+    <div class="gk-cart-scarcity" data-gk-scarcity role="timer" hidden>
+      <span data-gk-scarcity-title></span>
+      <strong data-gk-scarcity-time></strong>
+    </div>
 
     <div class="gk-cart-notice" role="status" aria-live="polite" data-gk-notice></div>
 

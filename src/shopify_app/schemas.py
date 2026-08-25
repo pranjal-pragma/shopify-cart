@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
@@ -149,10 +150,24 @@ class CartAppearanceConfiguration(BaseModel):
     custom_cart_drawer_selectors: list[CssSelector] = Field(default_factory=list, max_length=12)
     sticky_cart_enabled: bool = False
     scarcity_timer_enabled: bool = False
-    scarcity_timer_minutes: int = Field(default=10, ge=1, le=120)
-    scarcity_timer_text: str = Field(
-        default="Your cart is reserved for {time}", min_length=1, max_length=120
+    scarcity_timer_type: Literal["urgency", "sales"] = "urgency"
+    scarcity_timer_days: int = Field(default=0, ge=0, le=365)
+    scarcity_timer_hours: int = Field(default=0, ge=0, le=23)
+    scarcity_timer_minutes: int = Field(default=10, ge=0, le=59)
+    scarcity_timer_seconds: int = Field(default=0, ge=0, le=59)
+    scarcity_show_days: bool = False
+    scarcity_show_hours: bool = False
+    scarcity_show_minutes: bool = True
+    scarcity_show_seconds: bool = True
+    scarcity_timer_title: RichTextStyle = Field(
+        default_factory=lambda: RichTextStyle(
+            text="Your cart is reserved for", bold=True, font_size=12
+        )
     )
+    scarcity_timer_background: HexColor = "#FFF7E8"
+    scarcity_timer_text_color: HexColor = "#7B5312"
+    scarcity_timer_expiry_action: Literal["restart", "remove"] = "restart"
+    scarcity_timer_started_at: datetime | None = None
     allow_free_item_quantity_changes: bool = False
     block_cart_page_redirection: bool = True
     disable_checkout_for_upsell_only: bool = False
@@ -170,6 +185,25 @@ class CartAppearanceConfiguration(BaseModel):
     product_quantity_limit: int = Field(default=1, ge=1, le=99)
     variant_selection_enabled: bool = True
     product_click_behavior: Literal["nothing", "redirect", "modal"] = "nothing"
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_scarcity_timer(cls, value: object) -> object:
+        if not isinstance(value, dict) or "scarcity_timer_text" not in value:
+            return value
+        migrated = dict(value)
+        legacy_text = str(migrated.pop("scarcity_timer_text") or "").replace(
+            "{time}", ""
+        ).strip()
+        migrated.setdefault(
+            "scarcity_timer_title",
+            {
+                "text": legacy_text or "Your cart is reserved for",
+                "bold": True,
+                "font_size": 12,
+            },
+        )
+        return migrated
 
     @model_validator(mode="after")
     def validate_banner_modes(self) -> CartAppearanceConfiguration:
@@ -193,6 +227,26 @@ class CartAppearanceConfiguration(BaseModel):
             raise ValueError("custom drawer selectors cannot target the document root")
         if self.product_quantity_limit_enabled and self.quantity_limit_variant_id is None:
             raise ValueError("select a product variant before enabling its quantity limit")
+        if self.scarcity_timer_enabled:
+            duration = (
+                self.scarcity_timer_days * 86_400
+                + self.scarcity_timer_hours * 3_600
+                + self.scarcity_timer_minutes * 60
+                + self.scarcity_timer_seconds
+            )
+            if duration == 0:
+                raise ValueError("scarcity timer duration must be greater than zero")
+            if not any(
+                (
+                    self.scarcity_show_days,
+                    self.scarcity_show_hours,
+                    self.scarcity_show_minutes,
+                    self.scarcity_show_seconds,
+                )
+            ):
+                raise ValueError("select at least one scarcity timer display unit")
+            if not self.scarcity_timer_title.text.strip():
+                raise ValueError("scarcity timer title cannot be empty")
         return self
 
 

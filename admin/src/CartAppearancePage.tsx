@@ -96,8 +96,20 @@ export const defaultAppearance: CartAppearanceConfiguration = {
   custom_cart_drawer_selectors: [],
   sticky_cart_enabled: false,
   scarcity_timer_enabled: false,
+  scarcity_timer_type: 'urgency',
+  scarcity_timer_days: 0,
+  scarcity_timer_hours: 0,
   scarcity_timer_minutes: 10,
-  scarcity_timer_text: 'Your cart is reserved for {time}',
+  scarcity_timer_seconds: 0,
+  scarcity_show_days: false,
+  scarcity_show_hours: false,
+  scarcity_show_minutes: true,
+  scarcity_show_seconds: true,
+  scarcity_timer_title: {...defaultRichText('Your cart is reserved for', 12), bold: true},
+  scarcity_timer_background: '#FFF7E8',
+  scarcity_timer_text_color: '#7B5312',
+  scarcity_timer_expiry_action: 'restart',
+  scarcity_timer_started_at: null,
   allow_free_item_quantity_changes: false,
   block_cart_page_redirection: true,
   disable_checkout_for_upsell_only: false,
@@ -259,6 +271,12 @@ function SelectorList({label, description, selectors, onChange}: {label: string;
 type ConfigurationUpdate = <K extends keyof CartAppearanceConfiguration>(key: K, value: CartAppearanceConfiguration[K]) => void;
 
 function CartSettingsEditor({configuration, update, previewMode}: {configuration: CartAppearanceConfiguration; update: ConfigurationUpdate; previewMode: boolean}) {
+  const durationUnits = [
+    {label: 'Day', valueKey: 'scarcity_timer_days', showKey: 'scarcity_show_days', max: 365},
+    {label: 'Hour', valueKey: 'scarcity_timer_hours', showKey: 'scarcity_show_hours', max: 23},
+    {label: 'Minute', valueKey: 'scarcity_timer_minutes', showKey: 'scarcity_show_minutes', max: 59},
+    {label: 'Second', valueKey: 'scarcity_timer_seconds', showKey: 'scarcity_show_seconds', max: 59},
+  ] as const;
   const pickVariant = async () => {
     if (!window.shopify?.resourcePicker) return;
     const selected = await window.shopify.resourcePicker({
@@ -290,10 +308,19 @@ function CartSettingsEditor({configuration, update, previewMode}: {configuration
       <SelectorList label="Custom cart drawer selectors" description="Hide matching native cart drawers while GoKwik Cart is active." selectors={configuration.custom_cart_drawer_selectors} onChange={(value) => update('custom_cart_drawer_selectors', value)} />
     </EditorSection>
 
-    <EditorSection title="Sticky cart and urgency">
+    <EditorSection title="Sticky cart">
       <Toggle checked={configuration.sticky_cart_enabled} label="Sticky cart" description="Show cart quantity and price at the bottom of mobile screens, except product pages." onChange={(value) => update('sticky_cart_enabled', value)} />
-      <Toggle checked={configuration.scarcity_timer_enabled} label="Scarcity timer banner" description="Show a reservation countdown while the cart contains products." onChange={(value) => update('scarcity_timer_enabled', value)} />
-      {configuration.scarcity_timer_enabled && <div className="nested-settings"><Field label="Timer duration (minutes)" type="number" value={configuration.scarcity_timer_minutes} onChange={(value) => update('scarcity_timer_minutes', Math.min(120, Math.max(1, Number(value))))} /><Field label="Banner text" value={configuration.scarcity_timer_text} placeholder="Your cart is reserved for {time}" onChange={(value) => update('scarcity_timer_text', value)} /><p className="field-help">Use <code>{'{time}'}</code> where the countdown should appear.</p></div>}
+    </EditorSection>
+
+    <EditorSection title="Scarcity timer banner" description="Create urgency with a cart reservation or store-wide sale countdown.">
+      <Toggle checked={configuration.scarcity_timer_enabled} label="Enable" onChange={(value) => update('scarcity_timer_enabled', value)} />
+      {configuration.scarcity_timer_enabled && <div className="nested-settings scarcity-settings">
+        <div className="field"><span>Timer type</span><div className="choice-list choice-list--two" role="radiogroup" aria-label="Scarcity timer type">{[{value: 'urgency', label: 'Urgency timer', description: 'Starts for each shopper when their cart contains products.'}, {value: 'sales', label: 'Sales countdown timer', description: 'Uses one store-wide countdown anchored when you save.'}].map((option) => <label key={option.value}><input type="radio" name="scarcity-timer-type" checked={configuration.scarcity_timer_type === option.value} onChange={() => update('scarcity_timer_type', option.value as CartAppearanceConfiguration['scarcity_timer_type'])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}</div></div>
+        <div className="field"><span>Timer duration</span><div className="scarcity-duration-grid">{durationUnits.map((unit) => <label className="scarcity-duration-unit" key={unit.valueKey}><span><input type="checkbox" checked={configuration[unit.showKey]} onChange={(event) => update(unit.showKey, event.target.checked)} />{unit.label}</span><input type="number" min="0" max={unit.max} disabled={!configuration[unit.showKey]} value={configuration[unit.valueKey]} onChange={(event) => update(unit.valueKey, Math.min(unit.max, Math.max(0, Number(event.target.value))))} /></label>)}</div></div>
+        <RichTextField label="Title to display" value={configuration.scarcity_timer_title} onChange={(value) => update('scarcity_timer_title', value)} />
+        <div className="field-grid"><ColorField label="Background color" value={configuration.scarcity_timer_background} onChange={(value) => update('scarcity_timer_background', value)} /><ColorField label="Text color" value={configuration.scarcity_timer_text_color} onChange={(value) => update('scarcity_timer_text_color', value)} /></div>
+        <div className="field"><span>Action after timer expires</span><div className="choice-list choice-list--two" role="radiogroup" aria-label="Action after timer expires">{[{value: 'restart', label: 'Restart timer', description: 'Begin the same countdown again.'}, {value: 'remove', label: 'Remove timer', description: 'Hide the banner when it reaches zero.'}].map((option) => <label key={option.value}><input type="radio" name="scarcity-expiry-action" checked={configuration.scarcity_timer_expiry_action === option.value} onChange={() => update('scarcity_timer_expiry_action', option.value as CartAppearanceConfiguration['scarcity_timer_expiry_action'])} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}</div></div>
+      </div>}
     </EditorSection>
 
     <EditorSection title="Cart integrity and routing">
@@ -338,6 +365,16 @@ function conditionMatches(condition: BannerCondition, itemCount: number, total: 
   if (condition.operator === 'less_than') return actual < numericValue;
   if (condition.operator === 'equals') return actual === numericValue;
   return actual > numericValue;
+}
+
+function formatScarcityDuration(configuration: CartAppearanceConfiguration) {
+  const parts = [
+    configuration.scarcity_show_days && `${String(configuration.scarcity_timer_days).padStart(2, '0')}d`,
+    configuration.scarcity_show_hours && `${String(configuration.scarcity_timer_hours).padStart(2, '0')}h`,
+    configuration.scarcity_show_minutes && `${String(configuration.scarcity_timer_minutes).padStart(2, '0')}m`,
+    configuration.scarcity_show_seconds && `${String(configuration.scarcity_timer_seconds).padStart(2, '0')}s`,
+  ].filter(Boolean);
+  return parts.join(' ');
 }
 
 function CartPreview({configuration, empty}: {configuration: CartAppearanceConfiguration; empty: boolean}) {
@@ -414,7 +451,7 @@ function CartPreview({configuration, empty}: {configuration: CartAppearanceConfi
         <div><strong>Your cart</strong><span>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span></div>
         <button type="button" aria-label="Close cart preview"><X size={19} /></button>
       </div>
-      {configuration.scarcity_timer_enabled && !effectiveEmpty && <div className="preview-scarcity">{configuration.scarcity_timer_text.replace('{time}', `${configuration.scarcity_timer_minutes}:00`)}</div>}
+      {configuration.scarcity_timer_enabled && !effectiveEmpty && <div className="preview-scarcity" style={{backgroundColor: configuration.scarcity_timer_background, color: configuration.scarcity_timer_text_color}}><PreviewText value={configuration.scarcity_timer_title} /><strong>{formatScarcityDuration(configuration)}</strong></div>}
 
       {effectiveEmpty ? (
         <div className="preview-empty">
@@ -509,7 +546,7 @@ function EditorSection({title, description, children}: {title: string; descripti
 }
 
 function validate(configuration: CartAppearanceConfiguration): string | null {
-  const colors = [configuration.theme_color, configuration.announcement_background, configuration.announcement_text_color, configuration.checkout_background, configuration.checkout_text_color, configuration.footer_text_color, configuration.confirmation_background, configuration.confirmation_text_color];
+  const colors = [configuration.theme_color, configuration.announcement_background, configuration.announcement_text_color, configuration.checkout_background, configuration.checkout_text_color, configuration.footer_text_color, configuration.confirmation_background, configuration.confirmation_text_color, configuration.scarcity_timer_background, configuration.scarcity_timer_text_color];
   if (colors.some((color) => !/^#[0-9A-F]{6}$/i.test(color))) return 'Enter valid six-digit hex colors.';
   if (!configuration.empty_cta_url.startsWith('/') && !/^https?:\/\//i.test(configuration.empty_cta_url)) return 'The empty-cart link must be a store path or an HTTP(S) URL.';
   if (!configuration.checkout_text.text.trim()) return 'Checkout button text cannot be empty.';
@@ -522,7 +559,12 @@ function validate(configuration: CartAppearanceConfiguration): string | null {
     try { document.createDocumentFragment().querySelector(selector); } catch { return `Invalid CSS selector: ${selector}`; }
   }
   if (configuration.custom_cart_drawer_selectors.some((selector) => ['*', 'html', 'body', ':root'].includes(selector.toLowerCase()))) return 'Custom drawer selectors cannot target the entire document.';
-  if (configuration.scarcity_timer_enabled && !configuration.scarcity_timer_text.includes('{time}')) return 'Scarcity timer text must include {time}.';
+  if (configuration.scarcity_timer_enabled) {
+    const duration = configuration.scarcity_timer_days * 86400 + configuration.scarcity_timer_hours * 3600 + configuration.scarcity_timer_minutes * 60 + configuration.scarcity_timer_seconds;
+    if (duration <= 0) return 'Scarcity timer duration must be greater than zero.';
+    if (![configuration.scarcity_show_days, configuration.scarcity_show_hours, configuration.scarcity_show_minutes, configuration.scarcity_show_seconds].some(Boolean)) return 'Select at least one scarcity timer display unit.';
+    if (!configuration.scarcity_timer_title.text.trim()) return 'Scarcity timer title cannot be empty.';
+  }
   if (configuration.terms_checkbox_enabled && !configuration.terms_checkbox_text.trim()) return 'Terms checkbox text cannot be empty.';
   if (configuration.terms_checkbox_enabled && !configuration.terms_checkbox_url.startsWith('/') && !/^https?:\/\//i.test(configuration.terms_checkbox_url)) return 'The terms link must be a store path or an HTTP(S) URL.';
   if (configuration.product_quantity_limit_enabled && !configuration.quantity_limit_variant_id) return 'Select a product variant for the quantity limit.';
@@ -574,8 +616,13 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
     setSaving(true);
     setError(null);
     try {
-      if (!previewMode) await saveCartAppearance(configuration);
-      setSaved(cloneConfiguration(configuration));
+      let persisted = configuration;
+      if (!previewMode) {
+        const {updated_at: _updatedAt, ...responseConfiguration} = await saveCartAppearance(configuration);
+        persisted = responseConfiguration;
+        setConfiguration(cloneConfiguration(persisted));
+      }
+      setSaved(cloneConfiguration(persisted));
       setNotice('Cart configuration saved.');
       window.setTimeout(() => setNotice(null), 2600);
     } catch (reason) {
