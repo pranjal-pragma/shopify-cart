@@ -287,6 +287,15 @@ class CartAppearanceConfiguration(BaseModel):
         if not isinstance(value, dict):
             return value
         migrated = dict(value)
+        footer_text = migrated.get("footer_text")
+        if (
+            isinstance(footer_text, dict)
+            and footer_text.get("text") == "Secure checkout powered by GoKwik"
+        ):
+            migrated["footer_text"] = {
+                **footer_text,
+                "text": "Secure checkout powered by pragma-site-cart",
+            }
         if "scarcity_timer_text" in migrated:
             legacy_text = str(migrated.pop("scarcity_timer_text") or "").replace(
                 "{time}", ""

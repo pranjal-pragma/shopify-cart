@@ -1,13 +1,11 @@
 import {
   ArrowRight,
   Check,
-  ChevronRight,
   CircleHelp,
   ExternalLink,
   Gift,
   LayoutPanelTop,
   LifeBuoy,
-  Mail,
   Palette,
   RefreshCw,
   ShoppingCart,
@@ -22,8 +20,8 @@ import {CartAppearancePage} from './CartAppearancePage';
 import {CartFeaturesPage} from './CartFeaturesPage';
 import './styles.css';
 
-const SUPPORT_EMAIL = 'merchantcare@gokwik.co';
-const GUIDE_URL = 'https://www.gokwik.co/product/gokwikcart';
+const GUIDE_URL =
+  'https://docs.google.com/document/d/1yK8wEmM5OltWt4gCXPPuReYck5SCe3VEYUyhcgTV7SE/edit?usp=sharing';
 const previewMerchant: Merchant | null = import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview')
   ? {
       shop_domain: 'sample-store.myshopify.com',
@@ -88,7 +86,7 @@ function LoadingState() {
         <div className="spinner" aria-hidden="true" />
         <div>
           <h1>Connecting your store</h1>
-          <p>Loading your GoKwik Cart workspace.</p>
+          <p>Loading your pragma-site-cart workspace.</p>
         </div>
       </section>
     </AppShell>
@@ -126,7 +124,7 @@ function HomePage({merchant}: {merchant: Merchant}) {
       <header className="page-header">
         <div>
           <p className="eyebrow">Overview</p>
-          <h1>Welcome to GoKwik Cart</h1>
+          <h1>Welcome to pragma-site-cart</h1>
           <p className="page-subtitle">Set up your cart, publish it to your theme, and start selling.</p>
         </div>
         <div className="store-pill" title={merchant.shop_domain}>
@@ -148,17 +146,17 @@ function HomePage({merchant}: {merchant: Merchant}) {
                   {activationLabel}
                 </span>
               </div>
-              <p>Enable GoKwik Cart in your live theme to publish the cart and begin your 14-day trial.</p>
+              <p>Enable pragma-site-cart in your live theme to publish the cart and begin your 14-day trial.</p>
             </div>
           </div>
 
           <a className="button button--primary" href={themeEditorUrl} target="_blank" rel="noreferrer">
-            Enable GoKwik Cart
+            Enable pragma-site-cart
             <ExternalLink size={17} aria-hidden />
           </a>
         </div>
 
-        <div className="activation-checklist" aria-label="Before you enable GoKwik Cart">
+        <div className="activation-checklist" aria-label="Before you enable pragma-site-cart">
           <p className="checklist-title">Before you enable</p>
           <div className="checklist-item">
             <span className="check-icon" aria-hidden="true">
@@ -210,31 +208,18 @@ function HomePage({merchant}: {merchant: Merchant}) {
           </div>
           <div>
             <h2 id="support-title">Need a hand?</h2>
-            <p>Our team and product guides are here when you need them.</p>
+            <p>Product guides are available when you need them.</p>
           </div>
         </div>
 
         <div className="support-actions">
-          <a
-            className="support-link"
-            href={`mailto:${SUPPORT_EMAIL}?subject=GoKwik%20Cart%20support`}
-          >
-            <span className="support-link-icon" aria-hidden="true">
-              <Mail size={18} />
-            </span>
-            <span>
-              <strong>Contact via email</strong>
-              <small>{SUPPORT_EMAIL}</small>
-            </span>
-            <ChevronRight size={18} aria-hidden />
-          </a>
           <a className="support-link" href={GUIDE_URL} target="_blank" rel="noreferrer">
             <span className="support-link-icon" aria-hidden="true">
               <CircleHelp size={18} />
             </span>
             <span>
               <strong>View FAQs and guides</strong>
-              <small>Browse GoKwik Cart resources</small>
+              <small>Browse pragma-site-cart resources</small>
             </span>
             <ExternalLink size={17} aria-hidden />
           </a>
@@ -243,7 +228,7 @@ function HomePage({merchant}: {merchant: Merchant}) {
 
       <footer className="page-footer">
         <LayoutPanelTop size={16} aria-hidden />
-        <span>GoKwik Cart is securely connected to Shopify.</span>
+        <span>pragma-site-cart is securely connected to Shopify.</span>
       </footer>
     </AppShell>
   );

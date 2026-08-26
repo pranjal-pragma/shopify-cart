@@ -102,7 +102,7 @@ export const defaultAppearance: CartAppearanceConfiguration = {
   show_estimated_total_breakup: true,
   footer_enabled: true,
   footer_text_color: '#676A72',
-  footer_text: defaultRichText('Secure checkout powered by GoKwik', 12),
+  footer_text: defaultRichText('Secure checkout powered by pragma-site-cart', 12),
   footer_alignment: 'left',
   custom_script: '',
   add_to_cart_behavior: 'nothing',
@@ -327,12 +327,12 @@ function CartSettingsEditor({configuration, update, previewMode}: {configuration
         <div className="field-grid"><ColorField label="Popup background" value={configuration.confirmation_background} onChange={(value) => update('confirmation_background', value)} /><ColorField label="Popup text" value={configuration.confirmation_text_color} onChange={(value) => update('confirmation_text_color', value)} /></div>
         <div className="confirmation-sample" style={{backgroundColor: configuration.confirmation_background, color: configuration.confirmation_text_color}}>Item added to your cart</div>
       </div>}
-      <Toggle checked={configuration.use_theme_add_to_cart_handling} label="Use your own add-to-cart handling" description="Stop GoKwik from watching add-to-cart requests so your theme or custom script owns the response." onChange={(value) => update('use_theme_add_to_cart_handling', value)} />
+      <Toggle checked={configuration.use_theme_add_to_cart_handling} label="Use your own add-to-cart handling" description="Stop pragma-site-cart from watching add-to-cart requests so your theme or custom script owns the response." onChange={(value) => update('use_theme_add_to_cart_handling', value)} />
     </EditorSection>
 
     <EditorSection title="Custom selectors" description="Add selectors only when your theme elements are not detected automatically.">
-      <SelectorList label="Custom cart icon selectors" description="Open GoKwik Cart when these theme elements are selected." selectors={configuration.custom_cart_icon_selectors} onChange={(value) => update('custom_cart_icon_selectors', value)} />
-      <SelectorList label="Custom cart drawer selectors" description="Hide matching native cart drawers while GoKwik Cart is active." selectors={configuration.custom_cart_drawer_selectors} onChange={(value) => update('custom_cart_drawer_selectors', value)} />
+      <SelectorList label="Custom cart icon selectors" description="Open pragma-site-cart when these theme elements are selected." selectors={configuration.custom_cart_icon_selectors} onChange={(value) => update('custom_cart_icon_selectors', value)} />
+      <SelectorList label="Custom cart drawer selectors" description="Hide matching native cart drawers while pragma-site-cart is active." selectors={configuration.custom_cart_drawer_selectors} onChange={(value) => update('custom_cart_drawer_selectors', value)} />
     </EditorSection>
 
     <EditorSection title="Sticky cart">
@@ -723,7 +723,7 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
           {activeTab === 'appearance' ? <>
           <EditorSection title="Font style">
             <div className="choice-list" role="radiogroup" aria-label="Font style">
-              <label><input type="radio" name="font" checked={configuration.font_source === 'gokwik'} onChange={() => update('font_source', 'gokwik')} /><span><strong>Default GoKwik Cart font</strong><small>Clean, neutral interface typeface</small></span></label>
+              <label><input type="radio" name="font" checked={configuration.font_source === 'gokwik'} onChange={() => update('font_source', 'gokwik')} /><span><strong>Default pragma-site-cart font</strong><small>Clean, neutral interface typeface</small></span></label>
               <label><input type="radio" name="font" checked={configuration.font_source === 'theme'} onChange={() => update('font_source', 'theme')} /><span><strong>Import from current theme</strong><small>Inherit your storefront typography</small></span></label>
             </div>
           </EditorSection>
@@ -767,7 +767,7 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
             <Toggle checked={configuration.checkout_subtext_enabled} label="Add subtext" onChange={(value) => update('checkout_subtext_enabled', value)} />
             {configuration.checkout_subtext_enabled && <RichTextField label="Button subtext" value={configuration.checkout_subtext} onChange={(value) => update('checkout_subtext', value)} />}
             <AlignmentPicker value={configuration.checkout_alignment} onChange={(value) => update('checkout_alignment', value)} />
-            <Toggle checked={configuration.gokwik_checkout} label="GoKwik Checkout" onChange={(value) => update('gokwik_checkout', value)} />
+            <Toggle checked={configuration.gokwik_checkout} label="pragma-site-cart Checkout" onChange={(value) => update('gokwik_checkout', value)} />
             <Toggle checked={configuration.show_payment_icons} label="Show payment icons on checkout button" onChange={(value) => update('show_payment_icons', value)} />
           </EditorSection>
 

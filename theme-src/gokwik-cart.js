@@ -27,7 +27,7 @@
     try {
       appearance = JSON.parse(root.dataset.appearance || '{}') || {};
     } catch (error) {
-      console.error('[GoKwik Cart] Unable to read published appearance', error);
+      console.error('[pragma-site-cart] Unable to read published appearance', error);
     }
     const country = root.dataset.country || window.Shopify?.country || '';
     if (appearance.disable_on_non_indian_store && country && country !== 'IN') {
@@ -276,7 +276,7 @@
       } catch (error) {
         if (sequence !== requestSequence) return;
         setNotice('We could not update your cart. Please try again.', true);
-        console.error('[GoKwik Cart] Unable to load cart', error);
+        console.error('[pragma-site-cart] Unable to load cart', error);
       } finally {
         if (sequence === requestSequence) setLoading(false);
       }
@@ -315,7 +315,7 @@
         setNotice(quantity === 0 ? 'Item removed.' : 'Cart updated.');
       } catch (error) {
         setNotice('That change could not be saved. Please try again.', true);
-        console.error('[GoKwik Cart] Unable to change cart line', error);
+        console.error('[pragma-site-cart] Unable to change cart line', error);
       } finally {
         root.classList.remove('gk-cart-root--updating');
       }

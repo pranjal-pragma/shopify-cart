@@ -127,7 +127,7 @@
             compareAtPrices.set(Number(variant.id), Number(variant.compare_at_price) || 0);
           });
         } catch (error) {
-          console.error('[GoKwik Cart] Unable to load compare-at prices', error);
+          console.error('[pragma-site-cart] Unable to load compare-at prices', error);
         }
       }));
       if (api.getCart() !== cart) return;
@@ -182,7 +182,7 @@
         execute(api, configuration);
         document.dispatchEvent(new CustomEvent('gokwik:custom-script:ready'));
       } catch (error) {
-        console.error('[GoKwik Cart] Custom script failed', error);
+        console.error('[pragma-site-cart] Custom script failed', error);
         document.dispatchEvent(new CustomEvent('gokwik:custom-script:error', {detail: {error}}));
       }
     }

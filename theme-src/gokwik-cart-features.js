@@ -62,7 +62,7 @@
       if (configuration.discount_mode === 'hide') return;
       const block = section('gk-cart-feature--discount');
       if (configuration.discount_mode === 'checkout_offers') {
-        block.innerHTML = '<strong>Available offers</strong><span>Discounts configured in GoKwik Checkout will be validated at checkout.</span>';
+        block.innerHTML = '<strong>Available offers</strong><span>Discounts configured in pragma-site-cart Checkout will be validated at checkout.</span>';
       } else {
         const form = document.createElement('form');
         const input = document.createElement('input');
@@ -119,7 +119,7 @@
           if (closeAfterSave) details.open = false;
           showNotice('Order note saved.');
         } catch (error) {
-          console.error('[GoKwik Cart] Unable to save order note', error);
+          console.error('[pragma-site-cart] Unable to save order note', error);
           showNotice('Your order note could not be saved.', true);
         }
       };
@@ -198,7 +198,7 @@
           else await addVariant(configuration.one_tick_variant_id, {_gokwik_one_tick: 'true'});
           await api.sync();
         } catch (error) {
-          console.error('[GoKwik Cart] Unable to update one-tick add-on', error);
+          console.error('[pragma-site-cart] Unable to update one-tick add-on', error);
           showNotice('The add-on could not be updated.', true);
         } finally {
           action.disabled = false;
@@ -248,7 +248,7 @@
             await removeLine(item, line);
             await api.sync();
           } catch (error) {
-            console.error('[GoKwik Cart] Unable to swap product', error);
+            console.error('[pragma-site-cart] Unable to swap product', error);
             action.disabled = false;
             showNotice('That product upgrade is unavailable.', true);
           }

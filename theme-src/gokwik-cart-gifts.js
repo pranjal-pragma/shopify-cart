@@ -85,7 +85,7 @@
             await api.sync();
             if (configuration.free_gift_congratulations) showNotice('Congratulations! Your free gift was added.');
           } catch (error) {
-            console.error('[GoKwik Cart] Unable to add selected gift', error);
+            console.error('[pragma-site-cart] Unable to add selected gift', error);
             action.disabled = false;
             showNotice('That gift could not be added.', true);
           }
@@ -113,7 +113,7 @@
         await api.sync();
         if (missing.length && configuration.free_gift_congratulations) showNotice('Congratulations! Your free gift was added.');
       } catch (error) {
-        console.error('[GoKwik Cart] Unable to update free gifts', error);
+        console.error('[pragma-site-cart] Unable to update free gifts', error);
         showNotice('Your free gift could not be updated. Please try again.', true);
       } finally {
         mutationRunning = false;

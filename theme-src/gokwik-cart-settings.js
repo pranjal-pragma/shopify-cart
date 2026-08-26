@@ -65,7 +65,7 @@
       try {
         return Boolean(element.closest(selector));
       } catch (error) {
-        console.error(`[GoKwik Cart] Invalid selector: ${selector}`, error);
+        console.error(`[pragma-site-cart] Invalid selector: ${selector}`, error);
         return false;
       }
     };
@@ -80,7 +80,7 @@
             }
           });
         } catch (error) {
-          console.error(`[GoKwik Cart] Invalid drawer selector: ${selector}`, error);
+          console.error(`[pragma-site-cart] Invalid drawer selector: ${selector}`, error);
         }
       });
     };
@@ -110,7 +110,7 @@
     hideNativeAddToCartFeedback();
     (configuration.custom_cart_icon_selectors || []).forEach((selector) => {
       try {
-        if (!document.querySelector(selector)) console.warn(`[GoKwik Cart] Cart icon selector did not match: ${selector}`);
+        if (!document.querySelector(selector)) console.warn(`[pragma-site-cart] Cart icon selector did not match: ${selector}`);
       } catch {
         // Invalid selectors are reported by the guarded event matcher.
       }
@@ -267,7 +267,7 @@
         if (!removeResponse.ok) throw new Error(`Variant replacement failed (${removeResponse.status})`);
         await api.sync();
       } catch (error) {
-        console.error('[GoKwik Cart] Unable to change variant', error);
+        console.error('[pragma-site-cart] Unable to change variant', error);
         notice.textContent = 'That variant could not be selected. Please try again.';
         notice.hidden = false;
         notice.classList.add('gk-cart-notice--error');

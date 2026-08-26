@@ -441,6 +441,25 @@ def test_cart_appearance_migrates_legacy_scarcity_text() -> None:
     assert migrated.scarcity_timer_title.text == "Complete checkout in"
 
 
+def test_cart_appearance_migrates_legacy_branding() -> None:
+    migrated = CartAppearanceConfiguration.model_validate(
+        {
+            "banners": [
+                {
+                    "id": "welcome",
+                    "title": {"text": "Welcome"},
+                    "subtext": {"text": ""},
+                }
+            ],
+            "checkout_text": {"text": "Checkout"},
+            "checkout_subtext": {"text": ""},
+            "footer_text": {"text": "Secure checkout powered by GoKwik"},
+        }
+    )
+
+    assert migrated.footer_text.text == "Secure checkout powered by pragma-site-cart"
+
+
 def test_cart_appearance_migrates_legacy_sales_timer_period() -> None:
     configuration = CartAppearanceConfiguration.model_validate(
         {
