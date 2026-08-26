@@ -108,6 +108,16 @@ export interface CartAppearanceResponse extends CartAppearanceConfiguration {
   updated_at: string | null;
 }
 
+export interface FreeGiftCondition {
+  id: string;
+  condition_type: 'cart_subtotal' | 'cart_quantity';
+  operator: 'greater_than' | 'greater_than_or_equal' | 'equal_to';
+  value: number;
+  applicable_on: 'all' | 'products';
+  product_ids: string[];
+  product_titles: string[];
+}
+
 export interface FreeGiftOffer {
   id: string;
   title: string;
@@ -117,6 +127,9 @@ export interface FreeGiftOffer {
   variant_title: string;
   eligibility_type: 'cart_subtotal' | 'cart_quantity';
   threshold: number;
+  quantity: number;
+  re_add_each_time: boolean;
+  conditions: FreeGiftCondition[];
 }
 
 export interface TierReward {

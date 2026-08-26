@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "esbuild gokwik-cart.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart.js && esbuild gokwik-cart-extras.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-extras.js && esbuild gokwik-cart-settings.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-settings.js && esbuild gokwik-cart-scarcity.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-scarcity.js && esbuild gokwik-cart-features.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-features.js"
+    "build": "esbuild gokwik-cart.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart.js && esbuild gokwik-cart-extras.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-extras.js && esbuild gokwik-cart-settings.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-settings.js && esbuild gokwik-cart-scarcity.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-scarcity.js && esbuild gokwik-cart-features.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-features.js && esbuild gokwik-cart-gifts.js --bundle --minify --legal-comments=none --outfile=../extensions/gokwik-cart/assets/gokwik-cart-gifts.js"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

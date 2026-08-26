@@ -12,26 +12,17 @@
     const cartAddUrl = root.dataset.cartAddUrl || `${routesRoot}cart/add`;
     const cartChangeUrl = root.dataset.cartChangeUrl || `${routesRoot}cart/change`;
     const cartUpdateUrl = `${routesRoot}cart/update`;
-    const currency = root.dataset.currency || window.Shopify?.currency?.active || 'USD';
     const nativeFetch = window.fetch.bind(window);
     const host = document.createElement('section');
     host.className = 'gk-cart-features';
     host.hidden = true;
     drawer.insertBefore(host, footer);
-    let giftMutationRunning = false;
     let noteTimer = null;
     const productCache = new Map();
     const celebratedRewards = new Set();
 
     const isTruthy = (value) => value === true || ['true', '1', 'yes'].includes(String(value).toLowerCase());
     const numericId = (gid) => Number(String(gid || '').split('/').pop());
-    const money = (amount) => {
-      try {
-        return new Intl.NumberFormat(document.documentElement.lang || 'en', {style: 'currency', currency}).format(amount / 100);
-      } catch {
-        return `${(amount / 100).toFixed(2)} ${currency}`;
-      }
-    };
     const showNotice = (message, error = false) => {
       notice.textContent = message;
       notice.hidden = !message;
@@ -67,41 +58,6 @@
       });
       if (!response.ok) throw new Error(`Cart change failed (${response.status})`);
     };
-    const eligibilityMetric = (offer, cart) => offer.eligibility_type === 'cart_quantity'
-      ? cart.item_count
-      : cart.total_price / 100;
-    const offerIsActive = (offer, cart) => {
-      const now = Date.now();
-      return now >= Date.parse(offer.starts_at)
-        && now < Date.parse(offer.ends_at)
-        && eligibilityMetric(offer, cart) >= Number(offer.threshold || 0);
-    };
-
-    const reconcileAutoGifts = async (cart) => {
-      if (giftMutationRunning || !configuration.free_gifts_enabled || configuration.free_gift_method !== 'auto') return;
-      const offers = (configuration.free_gift_offers || []).filter((offer) => offerIsActive(offer, cart));
-      const giftItems = cart.items.map((item, index) => ({item, line: index + 1})).filter(({item}) => item.properties?._gokwik_free_gift_offer);
-      const validIds = new Set(offers.map((offer) => offer.id));
-      const stale = giftItems.filter(({item}) => !validIds.has(String(item.properties._gokwik_free_gift_offer)));
-      const currentIds = new Set(giftItems.map(({item}) => String(item.properties._gokwik_free_gift_offer)));
-      const missing = offers.filter((offer) => !currentIds.has(offer.id));
-      if (!stale.length && !missing.length) return;
-      giftMutationRunning = true;
-      try {
-        for (const {item, line} of stale) await removeLine(item, line);
-        for (const offer of missing) {
-          await addVariant(offer.variant_id, {_gokwik_free_gift: 'true', _gokwik_free_gift_offer: offer.id});
-        }
-        await api.sync();
-        if (missing.length && configuration.free_gift_congratulations) showNotice('Congratulations! Your free gift was added.');
-      } catch (error) {
-        console.error('[GoKwik Cart] Unable to update free gifts', error);
-        showNotice('Your free gift could not be updated. Please try again.', true);
-      } finally {
-        giftMutationRunning = false;
-      }
-    };
-
     const renderDiscounts = () => {
       if (configuration.discount_mode === 'hide') return;
       const block = section('gk-cart-feature--discount');
@@ -222,35 +178,6 @@
       }
     };
 
-    const renderGiftChoices = (cart) => {
-      if (!configuration.free_gifts_enabled || configuration.free_gift_method !== 'choice') return;
-      const active = (configuration.free_gift_offers || []).filter((offer) => offerIsActive(offer, cart));
-      const selected = new Set(cart.items.map((item) => String(item.properties?._gokwik_free_gift_offer || '')));
-      if (!active.length) return;
-      const block = section('gk-cart-feature--gifts');
-      const title = document.createElement('strong');
-      title.textContent = 'Choose your free gift';
-      block.append(title);
-      active.forEach((offer) => {
-        const action = button(selected.has(offer.id) ? `${offer.title} added` : offer.title);
-        action.disabled = selected.has(offer.id);
-        action.addEventListener('click', async () => {
-          action.disabled = true;
-          try {
-            await addVariant(offer.variant_id, {_gokwik_free_gift: 'true', _gokwik_free_gift_offer: offer.id});
-            await api.sync();
-            if (configuration.free_gift_congratulations) showNotice('Congratulations! Your free gift was added.');
-          } catch (error) {
-            console.error('[GoKwik Cart] Unable to add selected gift', error);
-            action.disabled = false;
-            showNotice('That gift could not be added.', true);
-          }
-        });
-        block.append(action);
-      });
-      host.append(block);
-    };
-
     const renderOneTick = (cart) => {
       if (!configuration.one_tick_enabled || !configuration.one_tick_variant_id) return;
       const existing = cart.items.map((item, index) => ({item, line: index + 1})).find(({item}) => isTruthy(item.properties?._gokwik_one_tick));
@@ -335,12 +262,10 @@
       host.hidden = cart.item_count === 0;
       if (host.hidden) return;
       renderRewards(cart);
-      renderGiftChoices(cart);
       renderOneTick(cart);
       renderDiscounts();
       renderOrderNotes(cart);
       renderSwaps(cart);
-      reconcileAutoGifts(cart);
     };
 
     document.addEventListener('gokwik:cart:rendered', (event) => {

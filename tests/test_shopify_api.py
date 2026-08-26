@@ -9,6 +9,7 @@ import pytest
 from shopify_app.config import Settings
 from shopify_app.schemas import (
     CartAppearanceConfiguration,
+    CartFeaturesConfiguration,
     ShopifyInstallationIdentity,
     TokenExchangeResponse,
 )
@@ -299,6 +300,80 @@ async def test_cart_features_validate_enabled_campaigns(
         "/api/v1/shopify/features", headers=headers, json=features
     )
     assert invalid_one_tick.status_code == 422
+
+
+async def test_free_gift_offer_conditions_persist(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    features = (await client.get("/api/v1/shopify/features", headers=headers)).json()
+    features.pop("updated_at")
+    now = datetime.now(UTC)
+    features.update(
+        {
+            "free_gifts_enabled": True,
+            "free_gift_method": "choice",
+            "free_gift_offers": [
+                {
+                    "id": "gift_offer",
+                    "title": "Choose a gift",
+                    "starts_at": now.isoformat(),
+                    "ends_at": (now + timedelta(days=7)).isoformat(),
+                    "variant_id": "gid://shopify/ProductVariant/123",
+                    "variant_title": "Gift / Default",
+                    "eligibility_type": "cart_quantity",
+                    "threshold": 2,
+                    "quantity": 2,
+                    "re_add_each_time": True,
+                    "conditions": [
+                        {
+                            "id": "gift_condition",
+                            "condition_type": "cart_quantity",
+                            "operator": "greater_than",
+                            "value": 1,
+                            "applicable_on": "products",
+                            "product_ids": ["gid://shopify/Product/456"],
+                            "product_titles": ["Snowboard"],
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+    saved = await client.put("/api/v1/shopify/features", headers=headers, json=features)
+
+    assert saved.status_code == 200
+    offer = saved.json()["free_gift_offers"][0]
+    assert offer["quantity"] == 2
+    assert offer["re_add_each_time"] is True
+    assert offer["conditions"][0]["product_titles"] == ["Snowboard"]
+
+
+def test_legacy_free_gift_offer_migrates_to_condition() -> None:
+    now = datetime.now(UTC)
+    configuration = CartFeaturesConfiguration.model_validate(
+        {
+            "free_gifts_enabled": True,
+            "free_gift_offers": [
+                {
+                    "id": "legacy_gift",
+                    "title": "Legacy gift",
+                    "starts_at": now,
+                    "ends_at": now + timedelta(days=1),
+                    "variant_id": "gid://shopify/ProductVariant/123",
+                    "variant_title": "Gift / Default",
+                    "eligibility_type": "cart_subtotal",
+                    "threshold": 999,
+                }
+            ],
+        }
+    )
+
+    condition = configuration.free_gift_offers[0].conditions[0]
+    assert condition.condition_type == "cart_subtotal"
+    assert condition.operator == "greater_than_or_equal"
+    assert condition.value == 999
 
 
 def test_cart_appearance_migrates_legacy_scarcity_text() -> None:

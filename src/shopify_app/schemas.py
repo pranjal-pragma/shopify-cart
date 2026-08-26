@@ -76,6 +76,26 @@ class RichTextStyle(BaseModel):
     font_size: Literal[12, 14, 16, 18, 20] = 14
 
 
+class FreeGiftCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    condition_type: Literal["cart_subtotal", "cart_quantity"] = "cart_quantity"
+    operator: Literal["greater_than", "greater_than_or_equal", "equal_to"] = "greater_than"
+    value: float = Field(default=1, ge=0, le=10_000_000)
+    applicable_on: Literal["all", "products"] = "all"
+    product_ids: list[str] = Field(default_factory=list, max_length=50)
+    product_titles: list[str] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def validate_products(self) -> FreeGiftCondition:
+        if len(self.product_ids) != len(self.product_titles):
+            raise ValueError("free gift product identifiers and titles must match")
+        if self.applicable_on == "products" and not self.product_ids:
+            raise ValueError("select at least one product for the free gift condition")
+        return self
+
+
 class FreeGiftOffer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -87,11 +107,23 @@ class FreeGiftOffer(BaseModel):
     variant_title: str = Field(min_length=1, max_length=200)
     eligibility_type: Literal["cart_subtotal", "cart_quantity"] = "cart_subtotal"
     threshold: float = Field(default=0, ge=0, le=10_000_000)
+    quantity: int = Field(default=1, ge=1, le=20)
+    re_add_each_time: bool = False
+    conditions: list[FreeGiftCondition] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
     def validate_period(self) -> FreeGiftOffer:
         if self.ends_at <= self.starts_at:
             raise ValueError("free gift end time must be after its start time")
+        if not self.conditions:
+            self.conditions = [
+                FreeGiftCondition(
+                    id=f"{self.id[:52]}_condition",
+                    condition_type=self.eligibility_type,
+                    operator="greater_than_or_equal",
+                    value=self.threshold,
+                )
+            ]
         return self
 
 
@@ -394,6 +426,11 @@ class CartFeaturesConfiguration(BaseModel):
             if len(self.one_tick_text.text) > 64:
                 raise ValueError("one-tick upsell text cannot exceed 64 characters")
         groups = [offer.id for offer in self.free_gift_offers]
+        groups.extend(
+            condition.id
+            for offer in self.free_gift_offers
+            for condition in offer.conditions
+        )
         groups.extend(reward.id for reward in self.tiered_rewards)
         groups.extend(rule.id for rule in self.product_swap_rules)
         groups.extend(group.id for group in self.product_swap_size_groups)
