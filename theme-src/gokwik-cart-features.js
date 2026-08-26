@@ -149,25 +149,33 @@
       textarea.maxLength = 500;
       textarea.placeholder = 'Add instructions for this order';
       textarea.setAttribute('aria-label', configuration.order_notes_title || 'Order note');
+      const saveNote = async (closeAfterSave = false) => {
+        try {
+          const response = await nativeFetch(`${cartUpdateUrl}.js`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({note: textarea.value}),
+          });
+          if (!response.ok) throw new Error(`Cart note failed (${response.status})`);
+          const updatedCart = await response.json();
+          displaySavedNote(updatedCart.note ?? textarea.value);
+          if (closeAfterSave) details.open = false;
+          showNotice('Order note saved.');
+        } catch (error) {
+          console.error('[GoKwik Cart] Unable to save order note', error);
+          showNotice('Your order note could not be saved.', true);
+        }
+      };
       textarea.addEventListener('input', () => {
         window.clearTimeout(noteTimer);
-        noteTimer = window.setTimeout(async () => {
-          try {
-            const response = await nativeFetch(`${cartUpdateUrl}.js`, {
-              method: 'POST',
-              headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-              credentials: 'same-origin',
-              body: JSON.stringify({note: textarea.value}),
-            });
-            if (!response.ok) throw new Error(`Cart note failed (${response.status})`);
-            const updatedCart = await response.json();
-            displaySavedNote(updatedCart.note ?? textarea.value);
-            showNotice('Order note saved.');
-          } catch (error) {
-            console.error('[GoKwik Cart] Unable to save order note', error);
-            showNotice('Your order note could not be saved.', true);
-          }
-        }, 500);
+        noteTimer = window.setTimeout(saveNote, 500);
+      });
+      textarea.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' || event.shiftKey) return;
+        event.preventDefault();
+        window.clearTimeout(noteTimer);
+        saveNote(true);
       });
       details.append(summary, textarea);
       block.append(details);

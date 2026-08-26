@@ -1012,6 +1012,10 @@
   white-space: pre-wrap;
 }
 
+.gk-cart-feature--notes details[open] .gk-cart-order-note-value {
+  display: none;
+}
+
 .gk-cart-feature--notes textarea {
   border: 0;
   border-top: 1px solid #dedfe2;
