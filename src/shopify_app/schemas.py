@@ -8,8 +8,10 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 
 def validate_hex_color(value: str) -> str:
     value = value.upper()
-    if len(value) != 7 or value[0] != "#" or any(
-        character not in "0123456789ABCDEF" for character in value[1:]
+    if (
+        len(value) != 7
+        or value[0] != "#"
+        or any(character not in "0123456789ABCDEF" for character in value[1:])
     ):
         raise ValueError("must be a six-digit hex color")
     return value
@@ -103,6 +105,8 @@ class FreeGiftOffer(BaseModel):
     title: str = Field(min_length=1, max_length=40)
     starts_at: datetime
     ends_at: datetime
+    source_variant_id: str = Field(pattern=r"^gid://shopify/ProductVariant/[0-9]+$")
+    source_variant_title: str = Field(min_length=1, max_length=200)
     variant_id: str = Field(pattern=r"^gid://shopify/ProductVariant/[0-9]+$")
     variant_title: str = Field(min_length=1, max_length=200)
     eligibility_type: Literal["cart_subtotal", "cart_quantity"] = "cart_subtotal"
@@ -110,6 +114,16 @@ class FreeGiftOffer(BaseModel):
     quantity: int = Field(default=1, ge=1, le=20)
     re_add_each_time: bool = False
     conditions: list[FreeGiftCondition] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_source_variant(cls, value: object) -> object:
+        if isinstance(value, dict):
+            migrated = dict(value)
+            migrated.setdefault("source_variant_id", migrated.get("variant_id"))
+            migrated.setdefault("source_variant_title", migrated.get("variant_title"))
+            return migrated
+        return value
 
     @model_validator(mode="after")
     def validate_period(self) -> FreeGiftOffer:
@@ -174,9 +188,9 @@ class BannerCondition(BaseModel):
 
     id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     type: Literal["cart_quantity", "cart_value", "product_title"] = "cart_quantity"
-    operator: Literal[
-        "greater_than", "less_than", "equals", "contains", "does_not_contain"
-    ] = "greater_than"
+    operator: Literal["greater_than", "less_than", "equals", "contains", "does_not_contain"] = (
+        "greater_than"
+    )
     value: str = Field(default="", max_length=200)
 
     @model_validator(mode="after")
@@ -288,9 +302,9 @@ class CartAppearanceConfiguration(BaseModel):
             return value
         migrated = dict(value)
         if "scarcity_timer_text" in migrated:
-            legacy_text = str(migrated.pop("scarcity_timer_text") or "").replace(
-                "{time}", ""
-            ).strip()
+            legacy_text = (
+                str(migrated.pop("scarcity_timer_text") or "").replace("{time}", "").strip()
+            )
             migrated.setdefault(
                 "scarcity_timer_title",
                 {
@@ -381,9 +395,9 @@ class CartFeaturesConfiguration(BaseModel):
     free_gift_offers: list[FreeGiftOffer] = Field(default_factory=list, max_length=12)
     free_gift_congratulations: bool = True
     tiered_rewards_enabled: bool = False
-    tiered_reward_condition: Literal[
-        "cart_subtotal", "cart_quantity", "cart_discount_price"
-    ] = "cart_subtotal"
+    tiered_reward_condition: Literal["cart_subtotal", "cart_quantity", "cart_discount_price"] = (
+        "cart_subtotal"
+    )
     tiered_rewards: list[TierReward] = Field(default_factory=list, max_length=12)
     tiered_primary_color: HexColor = "#F10A0A"
     tiered_secondary_color: HexColor = "#E5E7EB"
@@ -427,9 +441,7 @@ class CartFeaturesConfiguration(BaseModel):
                 raise ValueError("one-tick upsell text cannot exceed 64 characters")
         groups = [offer.id for offer in self.free_gift_offers]
         groups.extend(
-            condition.id
-            for offer in self.free_gift_offers
-            for condition in offer.conditions
+            condition.id for offer in self.free_gift_offers for condition in offer.conditions
         )
         groups.extend(reward.id for reward in self.tiered_rewards)
         groups.extend(rule.id for rule in self.product_swap_rules)

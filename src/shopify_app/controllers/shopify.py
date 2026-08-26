@@ -28,15 +28,15 @@ from shopify_app.services.shopify import (
     process_webhook,
     publish_cart_appearance,
     sync_free_gift_discounts,
+    sync_free_gift_inventory,
+    valid_gift_product_bindings,
 )
 from shopify_app.shopify_client import ShopifyClient
 
 logger = structlog.get_logger()
 
 
-def configuration_section(
-    configuration: dict[str, object], fields: set[str]
-) -> dict[str, object]:
+def configuration_section(configuration: dict[str, object], fields: set[str]) -> dict[str, object]:
     return {key: value for key, value in configuration.items() if key in fields}
 
 
@@ -144,9 +144,7 @@ async def publish_and_store_cart_configuration(
     return appearance
 
 
-async def get_cart_appearance(
-    *, auth: tuple[str, str], db: AsyncSession
-) -> CartAppearanceResponse:
+async def get_cart_appearance(*, auth: tuple[str, str], db: AsyncSession) -> CartAppearanceResponse:
     _, shop_domain = auth
     appearance = await db.scalar(
         select(CartAppearance).where(CartAppearance.shop_domain == shop_domain)
@@ -184,9 +182,7 @@ async def save_cart_appearance(
     )
 
 
-async def get_cart_features(
-    *, auth: tuple[str, str], db: AsyncSession
-) -> CartFeaturesResponse:
+async def get_cart_features(*, auth: tuple[str, str], db: AsyncSession) -> CartFeaturesResponse:
     _, shop_domain = auth
     appearance = await db.get(CartAppearance, shop_domain)
     if appearance is None:
@@ -213,15 +209,26 @@ async def save_cart_features(
     stored_discount_ids = (
         existing.configuration.get("_free_gift_discount_ids", {}) if existing else {}
     )
+    stored_gift_bindings = valid_gift_product_bindings(
+        existing.configuration.get("_free_gift_product_bindings", {}) if existing else {}
+    )
     if not isinstance(stored_discount_ids, dict) or not all(
         isinstance(key, str) and isinstance(value, str)
         for key, value in stored_discount_ids.items()
     ):
         stored_discount_ids = {}
     try:
-        discount_ids = await sync_free_gift_discounts(
+        synchronized_configuration, gift_bindings = await sync_free_gift_inventory(
             shop_domain=shop_domain,
             configuration=configuration,
+            existing_bindings=stored_gift_bindings,
+            db=db,
+            client=client,
+            cipher=cipher,
+        )
+        discount_ids = await sync_free_gift_discounts(
+            shop_domain=shop_domain,
+            configuration=synchronized_configuration,
             existing_discount_ids=cast(dict[str, str], stored_discount_ids),
             db=db,
             client=client,
@@ -234,21 +241,22 @@ async def save_cart_features(
     except ShopifyUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Could not synchronize Shopify free gift discounts",
+            detail="Could not synchronize Shopify free gift products and discounts",
         ) from exc
 
     appearance = await publish_and_store_cart_configuration(
         shop_domain=shop_domain,
         section={
-            **configuration.model_dump(mode="json"),
+            **synchronized_configuration.model_dump(mode="json"),
             "_free_gift_discount_ids": discount_ids,
+            "_free_gift_product_bindings": gift_bindings,
         },
         db=db,
         client=client,
         cipher=cipher,
     )
     return CartFeaturesResponse(
-        **configuration.model_dump(), updated_at=appearance.updated_at.isoformat()
+        **synchronized_configuration.model_dump(), updated_at=appearance.updated_at.isoformat()
     )
 
 

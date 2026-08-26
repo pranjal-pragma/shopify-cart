@@ -3,6 +3,20 @@
 Add new entries at the top. Record the date, decision, reason, and consequences. Do not rewrite
 past decisions unless they are factually incorrect; add a superseding entry instead.
 
+## 2026-08-26: Isolate free-gift inventory from catalog products
+
+**Decision:** Each free-gift offer uses a dedicated unlisted product and variant. The selected
+catalog variant is a read-only source for optional SKU, barcode, tracking, and location inventory
+synchronization.
+
+**Reason:** Free-gift checkout and OMS behavior require a real Shopify variant, but changing the
+merchant's original product or inventory would affect normal storefront sales.
+
+**Consequences:** Offers persist both source and runtime variant identities. Saving gift settings
+requires product, inventory, publication, and discount scopes; removed or disabled offers archive
+their generated products. Inventory synchronization currently runs when the feature configuration
+is saved, not continuously in response to inventory webhooks.
+
 ## 2026-08-26: Use one product namespace everywhere
 
 **Decision:** The complete application uses `pragma-site-cart` as its product, extension, asset,

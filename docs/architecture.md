@@ -52,15 +52,20 @@ Its cart-line attribute query must match the marker written by the theme extensi
 2. App Bridge supplies a session token; the backend exchanges or validates it.
 3. A merchant saves appearance or feature settings.
 4. FastAPI validates and stores the merged configuration in PostgreSQL.
-5. The Shopify service publishes the same configuration to the app-owned cart metafield.
-6. The app embed reads that metafield and applies the settings to Shopify Ajax Cart APIs.
-7. For eligible free gifts, the theme adds a marked cart line and the Discount Function enforces
-   the zero price at checkout.
+5. For each enabled free-gift offer, the Shopify service upserts a dedicated unlisted gift
+   product. The merchant-selected source variant remains read-only; the generated variant can
+   mirror its SKU, barcode, tracking mode, and per-location available inventory.
+6. The generated gift product is published to Online Store, and the synchronized variant ID is
+   written into the runtime configuration and automatic discount.
+7. The Shopify service publishes the merged configuration to the app-owned cart metafield.
+8. The app embed reads that metafield and applies the settings to Shopify Ajax Cart APIs.
+9. For eligible free gifts, the theme adds a marked generated gift line and the Discount Function
+   enforces the zero price at checkout.
 
 ## Storage and external systems
 
 - PostgreSQL stores encrypted shop sessions, webhook deliveries, and cart configuration.
-- Shopify Admin GraphQL handles app installation data, metafields, products, and discounts.
+- Shopify Admin GraphQL handles app installation data, metafields, products, inventory,
+  publications, and discounts.
 - Shopify Ajax Cart endpoints provide live storefront cart state and mutations.
 - Shopify CLI tunnels the local embedded app and bundles extensions during development.
-

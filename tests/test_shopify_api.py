@@ -7,6 +7,7 @@ import httpx
 import jwt
 import pytest
 
+import shopify_app.services.shopify as shopify_service
 from shopify_app.config import Settings
 from shopify_app.schemas import (
     CartAppearanceConfiguration,
@@ -14,7 +15,12 @@ from shopify_app.schemas import (
     ShopifyInstallationIdentity,
     TokenExchangeResponse,
 )
-from shopify_app.services.shopify import free_gift_automatic_discount_input
+from shopify_app.services.shopify import (
+    GiftInventoryLevel,
+    GiftVariantSnapshot,
+    free_gift_automatic_discount_input,
+    free_gift_product_input,
+)
 from shopify_app.shopify_client import ShopifyClient
 
 
@@ -129,9 +135,7 @@ async def test_shopify_endpoint_requires_session_token(client: httpx.AsyncClient
     assert response.status_code == 401
 
 
-async def test_me_requires_token_exchange(
-    client: httpx.AsyncClient, settings: Settings
-) -> None:
+async def test_me_requires_token_exchange(client: httpx.AsyncClient, settings: Settings) -> None:
     headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
     response = await client.get("/api/v1/shopify/me", headers=headers)
     assert response.status_code == 409
@@ -199,9 +203,7 @@ async def test_cart_appearance_rejects_invalid_configuration(
     configuration.pop("updated_at")
     configuration["theme_color"] = "red"
 
-    response = await client.put(
-        "/api/v1/shopify/appearance", headers=headers, json=configuration
-    )
+    response = await client.put("/api/v1/shopify/appearance", headers=headers, json=configuration)
     assert response.status_code == 422
 
 
@@ -214,9 +216,7 @@ async def test_cart_appearance_rejects_conflicting_banner_modes(
     configuration["dynamic_banners"] = True
     configuration["advanced_conditions"] = True
 
-    response = await client.put(
-        "/api/v1/shopify/appearance", headers=headers, json=configuration
-    )
+    response = await client.put("/api/v1/shopify/appearance", headers=headers, json=configuration)
     assert response.status_code == 422
 
 
@@ -235,17 +235,13 @@ async def test_cart_appearance_publishes_sales_period_and_rejects_invalid_range(
         }
     )
 
-    saved = await client.put(
-        "/api/v1/shopify/appearance", headers=headers, json=configuration
-    )
+    saved = await client.put("/api/v1/shopify/appearance", headers=headers, json=configuration)
     assert saved.status_code == 200
     assert saved.json()["scarcity_sale_starts_at"] == "2026-08-25T12:30:00Z"
     assert saved.json()["scarcity_sale_ends_at"] == "2026-08-26T12:30:00Z"
 
     configuration["scarcity_sale_ends_at"] = configuration["scarcity_sale_starts_at"]
-    invalid = await client.put(
-        "/api/v1/shopify/appearance", headers=headers, json=configuration
-    )
+    invalid = await client.put("/api/v1/shopify/appearance", headers=headers, json=configuration)
     assert invalid.status_code == 422
 
 
@@ -263,9 +259,7 @@ async def test_cart_features_persist_and_survive_appearance_saves(
     features.pop("updated_at")
     features["discount_mode"] = "hide"
     features["order_notes_title"] = "Delivery instructions"
-    saved_features = await client.put(
-        "/api/v1/shopify/features", headers=headers, json=features
-    )
+    saved_features = await client.put("/api/v1/shopify/features", headers=headers, json=features)
     assert saved_features.status_code == 200
     assert saved_features.json()["order_notes_title"] == "Delivery instructions"
 
@@ -291,16 +285,12 @@ async def test_cart_features_validate_enabled_campaigns(
     features.pop("updated_at")
     features["free_gifts_enabled"] = True
 
-    invalid_gifts = await client.put(
-        "/api/v1/shopify/features", headers=headers, json=features
-    )
+    invalid_gifts = await client.put("/api/v1/shopify/features", headers=headers, json=features)
     assert invalid_gifts.status_code == 422
 
     features["free_gifts_enabled"] = False
     features["one_tick_enabled"] = True
-    invalid_one_tick = await client.put(
-        "/api/v1/shopify/features", headers=headers, json=features
-    )
+    invalid_one_tick = await client.put("/api/v1/shopify/features", headers=headers, json=features)
     assert invalid_one_tick.status_code == 422
 
 
@@ -373,6 +363,10 @@ def test_legacy_free_gift_offer_migrates_to_condition() -> None:
     )
 
     condition = configuration.free_gift_offers[0].conditions[0]
+    assert configuration.free_gift_offers[0].source_variant_id == (
+        "gid://shopify/ProductVariant/123"
+    )
+    assert configuration.free_gift_offers[0].source_variant_title == "Gift / Default"
     assert condition.condition_type == "cart_subtotal"
     assert condition.operator == "greater_than_or_equal"
     assert condition.value == 999
@@ -414,6 +408,236 @@ def test_free_gift_discount_input_enforces_checkout_configuration() -> None:
     assert function_configuration["variant_id"] == "gid://shopify/ProductVariant/123"
     assert function_configuration["quantity"] == 2
     assert function_configuration["conditions"][0]["value"] == 500
+
+
+def test_free_gift_product_input_copies_inventory_to_dedicated_variant() -> None:
+    now = datetime.now(UTC)
+    offer = CartFeaturesConfiguration.model_validate(
+        {
+            "free_gifts_enabled": True,
+            "free_gift_offers": [
+                {
+                    "id": "inventory_gift",
+                    "title": "Inventory gift",
+                    "starts_at": now,
+                    "ends_at": now + timedelta(days=1),
+                    "variant_id": "gid://shopify/ProductVariant/123",
+                    "variant_title": "Source gift",
+                }
+            ],
+        }
+    ).free_gift_offers[0]
+    source = GiftVariantSnapshot(
+        variant_id="gid://shopify/ProductVariant/123",
+        title="Source gift",
+        price="749.95",
+        sku="SOURCE-SKU",
+        barcode="123456789",
+        tracked=True,
+        inventory_policy="DENY",
+        taxable=True,
+        inventory_item_id="gid://shopify/InventoryItem/456",
+        inventory_levels=(GiftInventoryLevel(location_id="gid://shopify/Location/1", available=8),),
+    )
+
+    product = free_gift_product_input(
+        offer=offer,
+        source=source,
+        target_variant_id="gid://shopify/ProductVariant/999",
+        copy_inventory=True,
+    )
+    variant = product["variants"][0]
+
+    assert product["status"] == "UNLISTED"
+    assert variant["id"] == "gid://shopify/ProductVariant/999"
+    assert variant["sku"] == "SOURCE-SKU"
+    assert variant["barcode"] == "123456789"
+    assert variant["inventoryItem"]["tracked"] is True
+    assert variant["inventoryQuantities"] == [
+        {
+            "locationId": "gid://shopify/Location/1",
+            "name": "available",
+            "quantity": 8,
+        }
+    ]
+
+
+def test_free_gift_product_input_does_not_copy_inventory_when_disabled() -> None:
+    now = datetime.now(UTC)
+    offer = CartFeaturesConfiguration.model_validate(
+        {
+            "free_gifts_enabled": True,
+            "free_gift_offers": [
+                {
+                    "id": "standalone_gift",
+                    "title": "Standalone gift",
+                    "starts_at": now,
+                    "ends_at": now + timedelta(days=1),
+                    "variant_id": "gid://shopify/ProductVariant/123",
+                    "variant_title": "Source gift",
+                }
+            ],
+        }
+    ).free_gift_offers[0]
+    source = GiftVariantSnapshot(
+        variant_id="gid://shopify/ProductVariant/123",
+        title="Source gift",
+        price="100.00",
+        sku="DO-NOT-COPY",
+        barcode="987654321",
+        tracked=True,
+        inventory_policy="CONTINUE",
+        taxable=False,
+        inventory_item_id="gid://shopify/InventoryItem/456",
+        inventory_levels=(GiftInventoryLevel(location_id="gid://shopify/Location/1", available=4),),
+    )
+
+    product = free_gift_product_input(
+        offer=offer, source=source, target_variant_id=None, copy_inventory=False
+    )
+    variant = product["variants"][0]
+
+    assert variant["sku"] == ""
+    assert variant["barcode"] == ""
+    assert variant["inventoryItem"]["tracked"] is False
+    assert "inventoryQuantities" not in variant
+
+
+async def test_free_gift_inventory_sync_uses_a_dedicated_variant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(UTC)
+    configuration = CartFeaturesConfiguration.model_validate(
+        {
+            "free_gifts_enabled": True,
+            "free_gifts_copy_inventory": True,
+            "free_gift_offers": [
+                {
+                    "id": "synced_gift",
+                    "title": "Synced gift",
+                    "starts_at": now,
+                    "ends_at": now + timedelta(days=1),
+                    "variant_id": "gid://shopify/ProductVariant/123",
+                    "variant_title": "Catalog source",
+                }
+            ],
+        }
+    )
+
+    async def fake_access_token(**_: object) -> str:
+        return "access-token"
+
+    monkeypatch.setattr(shopify_service, "get_valid_access_token", fake_access_token)
+
+    class FakeDb:
+        async def get(self, *_: object) -> object:
+            return type("Session", (), {"app_installation_gid": "gid://shopify/App/1"})()
+
+    class FakeShopifyClient:
+        def __init__(self) -> None:
+            self.product_input: dict[str, object] | None = None
+            self.published_product_id: str | None = None
+
+        async def graphql(self, **request: object) -> dict[str, object]:
+            query = str(request["query"])
+            variables = request["variables"]
+            assert isinstance(variables, dict)
+            if "GiftPublication" in query:
+                return {
+                    "data": {
+                        "publications": {
+                            "nodes": [
+                                {
+                                    "id": "gid://shopify/Publication/1",
+                                    "channels": {
+                                        "nodes": [
+                                            {"handle": "online-store", "name": "Online Store"}
+                                        ]
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            if "GiftInventorySource" in query:
+                return {
+                    "data": {
+                        "source": {
+                            "id": "gid://shopify/ProductVariant/123",
+                            "displayName": "Catalog source",
+                            "barcode": "SOURCE-BARCODE",
+                            "price": "25.00",
+                            "inventoryPolicy": "DENY",
+                            "taxable": True,
+                            "inventoryItem": {
+                                "id": "gid://shopify/InventoryItem/123",
+                                "sku": "SOURCE-SKU",
+                                "tracked": True,
+                                "inventoryLevels": {
+                                    "nodes": [
+                                        {
+                                            "location": {"id": "gid://shopify/Location/1"},
+                                            "quantities": [{"name": "available", "quantity": 6}],
+                                        }
+                                    ]
+                                },
+                            },
+                        },
+                        "target": None,
+                    }
+                }
+            if "UpsertGiftProduct" in query:
+                self.product_input = variables["input"]
+                return {
+                    "data": {
+                        "productSet": {
+                            "product": {
+                                "id": "gid://shopify/Product/999",
+                                "variants": {
+                                    "nodes": [
+                                        {
+                                            "id": "gid://shopify/ProductVariant/999",
+                                            "displayName": "pragma-site-cart gift - Synced gift",
+                                            "barcode": "SOURCE-BARCODE",
+                                            "price": "25.00",
+                                            "inventoryPolicy": "DENY",
+                                            "taxable": True,
+                                            "inventoryItem": {
+                                                "id": "gid://shopify/InventoryItem/999",
+                                                "sku": "SOURCE-SKU",
+                                                "tracked": True,
+                                                "inventoryLevels": {"nodes": []},
+                                            },
+                                        }
+                                    ]
+                                },
+                            },
+                            "userErrors": [],
+                        }
+                    }
+                }
+            if "PublishGiftProduct" in query:
+                self.published_product_id = str(variables["id"])
+                return {"data": {"publishablePublish": {"userErrors": []}}}
+            raise AssertionError(f"Unexpected GraphQL operation: {query}")
+
+    fake_client = FakeShopifyClient()
+    synchronized, bindings = await shopify_service.sync_free_gift_inventory(
+        shop_domain="example-shop.myshopify.com",
+        configuration=configuration,
+        existing_bindings={},
+        db=FakeDb(),  # type: ignore[arg-type]
+        client=fake_client,  # type: ignore[arg-type]
+        cipher=object(),  # type: ignore[arg-type]
+    )
+    offer = synchronized.free_gift_offers[0]
+
+    assert offer.source_variant_id == "gid://shopify/ProductVariant/123"
+    assert offer.variant_id == "gid://shopify/ProductVariant/999"
+    assert fake_client.published_product_id == "gid://shopify/Product/999"
+    assert fake_client.product_input is not None
+    assert fake_client.product_input["variants"][0]["sku"] == "SOURCE-SKU"  # type: ignore[index]
+    assert bindings["synced_gift"]["product_id"] == "gid://shopify/Product/999"
 
 
 def test_cart_appearance_migrates_legacy_scarcity_text() -> None:
@@ -507,8 +731,6 @@ async def test_cart_appearance_persists_advanced_banner_conditions(
         }
     ]
 
-    response = await client.put(
-        "/api/v1/shopify/appearance", headers=headers, json=configuration
-    )
+    response = await client.put("/api/v1/shopify/appearance", headers=headers, json=configuration)
     assert response.status_code == 200
     assert response.json()["banners"][0]["conditions"][0]["value"] == "2"

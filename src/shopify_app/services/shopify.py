@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
+from uuid import uuid4
 
 import httpx
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +31,7 @@ APPEARANCE_METAFIELD_KEY = "appearance"
 FREE_GIFT_FUNCTION_HANDLE = "free-gift-discount"
 FREE_GIFT_METAFIELD_NAMESPACE = "$app"
 FREE_GIFT_METAFIELD_KEY = "function-configuration"
+FREE_GIFT_PRODUCT_HANDLE_PREFIX = "pragma-site-cart-gift"
 
 
 class ShopifyServiceError(Exception):
@@ -59,6 +61,32 @@ class WebhookResult:
     webhook_id: str
     status: str
     duplicate: bool = False
+
+
+@dataclass(frozen=True)
+class GiftInventoryLevel:
+    location_id: str
+    available: int
+
+
+@dataclass(frozen=True)
+class GiftVariantSnapshot:
+    variant_id: str
+    title: str
+    price: str
+    sku: str
+    barcode: str
+    tracked: bool
+    inventory_policy: str
+    taxable: bool
+    inventory_item_id: str
+    inventory_levels: tuple[GiftInventoryLevel, ...]
+
+
+@dataclass(frozen=True)
+class GiftProductState:
+    product_id: str
+    variant: GiftVariantSnapshot
 
 
 def split_scopes(scopes: str) -> list[str]:
@@ -318,6 +346,492 @@ def free_gift_function_configuration(offer: FreeGiftOffer) -> dict[str, Any]:
     }
 
 
+def free_gift_product_handle(offer_id: str) -> str:
+    return f"{FREE_GIFT_PRODUCT_HANDLE_PREFIX}-{offer_id.lower()}"
+
+
+def parse_inventory_levels(inventory_item: dict[str, Any]) -> tuple[GiftInventoryLevel, ...]:
+    levels: list[GiftInventoryLevel] = []
+    for level in inventory_item.get("inventoryLevels", {}).get("nodes", []):
+        quantities = level.get("quantities", [])
+        available = next(
+            (
+                quantity.get("quantity", 0)
+                for quantity in quantities
+                if quantity.get("name") == "available"
+            ),
+            0,
+        )
+        levels.append(
+            GiftInventoryLevel(location_id=level["location"]["id"], available=int(available))
+        )
+    return tuple(levels)
+
+
+def parse_gift_variant(variant: dict[str, Any]) -> GiftVariantSnapshot:
+    inventory_item = variant["inventoryItem"]
+    return GiftVariantSnapshot(
+        variant_id=variant["id"],
+        title=variant["displayName"],
+        price=str(variant["price"]),
+        sku=inventory_item.get("sku") or "",
+        barcode=variant.get("barcode") or "",
+        tracked=bool(inventory_item.get("tracked")),
+        inventory_policy=variant.get("inventoryPolicy") or "DENY",
+        taxable=bool(variant.get("taxable", True)),
+        inventory_item_id=inventory_item["id"],
+        inventory_levels=parse_inventory_levels(inventory_item),
+    )
+
+
+def free_gift_product_input(
+    *,
+    offer: FreeGiftOffer,
+    source: GiftVariantSnapshot,
+    target_variant_id: str | None,
+    copy_inventory: bool,
+) -> dict[str, Any]:
+    variant: dict[str, Any] = {
+        "optionValues": [{"optionName": "Title", "name": "Gift"}],
+        "price": source.price,
+        "sku": source.sku if copy_inventory else "",
+        "barcode": source.barcode if copy_inventory else "",
+        "inventoryItem": {
+            "tracked": source.tracked if copy_inventory else False,
+        },
+        "inventoryPolicy": source.inventory_policy,
+        "taxable": source.taxable,
+    }
+    if target_variant_id:
+        variant["id"] = target_variant_id
+    if copy_inventory and source.tracked:
+        variant["inventoryQuantities"] = [
+            {
+                "locationId": level.location_id,
+                "name": "available",
+                "quantity": level.available,
+            }
+            for level in source.inventory_levels
+        ]
+    return {
+        "title": f"pragma-site-cart gift - {offer.title}",
+        "handle": free_gift_product_handle(offer.id),
+        "status": "UNLISTED",
+        "productType": "pragma-site-cart gift",
+        "tags": ["pragma-site-cart", "free-gift"],
+        "productOptions": [{"name": "Title", "position": 1, "values": [{"name": "Gift"}]}],
+        "variants": [variant],
+    }
+
+
+def validated_shopify_result(
+    payload: dict[str, Any], field: str, error_message: str
+) -> dict[str, Any]:
+    try:
+        result = payload["data"][field]
+        if payload.get("errors") or result["userErrors"]:
+            raise ShopifyUpstreamError(error_message)
+        return cast(dict[str, Any], result)
+    except (KeyError, TypeError) as exc:
+        raise ShopifyUpstreamError(error_message) from exc
+
+
+async def fetch_gift_product_state(
+    *,
+    shop_domain: str,
+    access_token: str,
+    source_variant_id: str,
+    handle: str,
+    client: ShopifyClient,
+) -> tuple[GiftVariantSnapshot, GiftProductState | None]:
+    payload = await client.graphql(
+        shop_domain=shop_domain,
+        access_token=access_token,
+        query="""
+            query GiftInventorySource($sourceVariantId: ID!, $handle: String!) {
+              source: productVariant(id: $sourceVariantId) {
+                id
+                displayName
+                barcode
+                price
+                inventoryPolicy
+                taxable
+                inventoryItem {
+                  id
+                  sku
+                  tracked
+                  inventoryLevels(first: 250) {
+                    nodes {
+                      location { id }
+                      quantities(names: ["available"]) { name quantity }
+                    }
+                  }
+                }
+              }
+              target: productByIdentifier(identifier: {handle: $handle}) {
+                id
+                variants(first: 1) {
+                  nodes {
+                    id
+                    displayName
+                    barcode
+                    price
+                    inventoryPolicy
+                    taxable
+                    inventoryItem {
+                      id
+                      sku
+                      tracked
+                      inventoryLevels(first: 250) {
+                        nodes {
+                          location { id }
+                          quantities(names: ["available"]) { name quantity }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+        """,
+        variables={"sourceVariantId": source_variant_id, "handle": handle},
+    )
+    try:
+        if payload.get("errors"):
+            raise ShopifyUpstreamError("Shopify rejected the gift inventory query")
+        source_node = payload["data"]["source"]
+        if source_node is None:
+            raise ShopifyUpstreamError("The selected gift source variant no longer exists")
+        source = parse_gift_variant(source_node)
+        target_node = payload["data"].get("target")
+        if target_node is None:
+            return source, None
+        target_variants = target_node["variants"]["nodes"]
+        if not target_variants:
+            return source, None
+        return source, GiftProductState(
+            product_id=target_node["id"],
+            variant=parse_gift_variant(target_variants[0]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ShopifyUpstreamError("Shopify returned invalid gift inventory data") from exc
+
+
+async def activate_missing_gift_inventory_levels(
+    *,
+    shop_domain: str,
+    access_token: str,
+    source: GiftVariantSnapshot,
+    target: GiftVariantSnapshot,
+    client: ShopifyClient,
+) -> None:
+    target_locations = {level.location_id for level in target.inventory_levels}
+    for level in source.inventory_levels:
+        if level.location_id in target_locations:
+            continue
+        payload = await client.graphql(
+            shop_domain=shop_domain,
+            access_token=access_token,
+            query="""
+                mutation ActivateGiftInventory(
+                  $inventoryItemId: ID!,
+                  $locationId: ID!,
+                  $available: Int,
+                  $idempotencyKey: String!
+                ) {
+                  inventoryActivate(
+                    inventoryItemId: $inventoryItemId,
+                    locationId: $locationId,
+                    available: $available
+                  ) @idempotent(key: $idempotencyKey) {
+                    inventoryLevel { id }
+                    userErrors { field message code }
+                  }
+                }
+            """,
+            variables={
+                "inventoryItemId": target.inventory_item_id,
+                "locationId": level.location_id,
+                "available": level.available,
+                "idempotencyKey": str(uuid4()),
+            },
+        )
+        validated_shopify_result(
+            payload, "inventoryActivate", "Shopify could not activate gift inventory"
+        )
+
+
+async def upsert_gift_product(
+    *,
+    shop_domain: str,
+    access_token: str,
+    offer: FreeGiftOffer,
+    source: GiftVariantSnapshot,
+    target: GiftProductState | None,
+    copy_inventory: bool,
+    client: ShopifyClient,
+) -> GiftProductState:
+    if copy_inventory and source.tracked and target is not None:
+        await activate_missing_gift_inventory_levels(
+            shop_domain=shop_domain,
+            access_token=access_token,
+            source=source,
+            target=target.variant,
+            client=client,
+        )
+    payload = await client.graphql(
+        shop_domain=shop_domain,
+        access_token=access_token,
+        query="""
+            mutation UpsertGiftProduct(
+              $identifier: ProductSetIdentifiers!,
+              $input: ProductSetInput!
+            ) {
+              productSet(identifier: $identifier, input: $input, synchronous: true) {
+                product {
+                  id
+                  variants(first: 1) {
+                    nodes {
+                      id
+                      displayName
+                      barcode
+                      price
+                      inventoryPolicy
+                      taxable
+                      inventoryItem {
+                        id
+                        sku
+                        tracked
+                        inventoryLevels(first: 250) {
+                          nodes {
+                            location { id }
+                            quantities(names: ["available"]) { name quantity }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                userErrors { field message code }
+              }
+            }
+        """,
+        variables={
+            "identifier": {"handle": free_gift_product_handle(offer.id)},
+            "input": free_gift_product_input(
+                offer=offer,
+                source=source,
+                target_variant_id=target.variant.variant_id if target else None,
+                copy_inventory=copy_inventory,
+            ),
+        },
+    )
+    result = validated_shopify_result(
+        payload, "productSet", "Shopify could not synchronize the gift product"
+    )
+    try:
+        product = result["product"]
+        return GiftProductState(
+            product_id=product["id"],
+            variant=parse_gift_variant(product["variants"]["nodes"][0]),
+        )
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise ShopifyUpstreamError("Shopify returned an invalid gift product") from exc
+
+
+async def online_store_publication_id(
+    *, shop_domain: str, access_token: str, client: ShopifyClient
+) -> str:
+    payload = await client.graphql(
+        shop_domain=shop_domain,
+        access_token=access_token,
+        query="""
+            query GiftPublication {
+              publications(first: 50) {
+                nodes {
+                  id
+                  channels(first: 10) { nodes { handle name } }
+                }
+              }
+            }
+        """,
+        variables={},
+    )
+    try:
+        if payload.get("errors"):
+            raise ShopifyUpstreamError("Shopify rejected the publication query")
+        publications = payload["data"]["publications"]["nodes"]
+        publication = next(
+            item
+            for item in publications
+            if any(
+                channel["name"].strip().lower() == "online store"
+                or channel["handle"].strip().lower() in {"online-store", "online_store"}
+                for channel in item["channels"]["nodes"]
+            )
+        )
+        return cast(str, publication["id"])
+    except (KeyError, StopIteration, TypeError) as exc:
+        raise ShopifyUpstreamError("Shopify Online Store publication is unavailable") from exc
+
+
+async def publish_gift_product(
+    *,
+    shop_domain: str,
+    access_token: str,
+    product_id: str,
+    publication_id: str,
+    client: ShopifyClient,
+) -> None:
+    payload = await client.graphql(
+        shop_domain=shop_domain,
+        access_token=access_token,
+        query="""
+            mutation PublishGiftProduct($id: ID!, $publicationId: ID!) {
+              publishablePublish(
+                id: $id,
+                input: [{publicationId: $publicationId}]
+              ) {
+                userErrors { field message code }
+              }
+            }
+        """,
+        variables={"id": product_id, "publicationId": publication_id},
+    )
+    validated_shopify_result(
+        payload, "publishablePublish", "Shopify could not publish the gift product"
+    )
+
+
+async def archive_gift_product(
+    *,
+    shop_domain: str,
+    access_token: str,
+    product_id: str,
+    client: ShopifyClient,
+) -> None:
+    payload = await client.graphql(
+        shop_domain=shop_domain,
+        access_token=access_token,
+        query="""
+            mutation ArchiveGiftProduct($product: ProductUpdateInput!) {
+              productUpdate(product: $product) {
+                product { id }
+                userErrors { field message code }
+              }
+            }
+        """,
+        variables={"product": {"id": product_id, "status": "ARCHIVED"}},
+    )
+    validated_shopify_result(payload, "productUpdate", "Shopify could not archive the gift product")
+
+
+def valid_gift_product_bindings(value: object) -> dict[str, dict[str, str]]:
+    if not isinstance(value, dict):
+        return {}
+    bindings: dict[str, dict[str, str]] = {}
+    for offer_id, binding in value.items():
+        if not isinstance(offer_id, str) or not isinstance(binding, dict):
+            continue
+        product_id = binding.get("product_id")
+        variant_id = binding.get("variant_id")
+        source_variant_id = binding.get("source_variant_id")
+        if not isinstance(product_id, str) or not isinstance(variant_id, str):
+            continue
+        if not isinstance(source_variant_id, str):
+            continue
+        bindings[offer_id] = {
+            "product_id": product_id,
+            "variant_id": variant_id,
+            "source_variant_id": source_variant_id,
+        }
+    return bindings
+
+
+async def sync_free_gift_inventory(
+    *,
+    shop_domain: str,
+    configuration: CartFeaturesConfiguration,
+    existing_bindings: dict[str, dict[str, str]],
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> tuple[CartFeaturesConfiguration, dict[str, dict[str, str]]]:
+    session = await db.get(ShopSession, shop_domain)
+    if session is None or session.app_installation_gid is None:
+        return configuration, existing_bindings
+
+    access_token = await get_valid_access_token(
+        shop_domain=shop_domain, db=db, client=client, cipher=cipher
+    )
+    desired_offers = configuration.free_gift_offers if configuration.free_gifts_enabled else []
+    desired_ids = {offer.id for offer in desired_offers}
+    synchronized_offers: list[FreeGiftOffer] = []
+    synchronized_bindings: dict[str, dict[str, str]] = {}
+
+    try:
+        for offer_id, binding in existing_bindings.items():
+            if offer_id not in desired_ids:
+                await archive_gift_product(
+                    shop_domain=shop_domain,
+                    access_token=access_token,
+                    product_id=binding["product_id"],
+                    client=client,
+                )
+
+        publication_id = (
+            await online_store_publication_id(
+                shop_domain=shop_domain, access_token=access_token, client=client
+            )
+            if desired_offers
+            else None
+        )
+        for offer in desired_offers:
+            source, target = await fetch_gift_product_state(
+                shop_domain=shop_domain,
+                access_token=access_token,
+                source_variant_id=offer.source_variant_id,
+                handle=free_gift_product_handle(offer.id),
+                client=client,
+            )
+            gift = await upsert_gift_product(
+                shop_domain=shop_domain,
+                access_token=access_token,
+                offer=offer,
+                source=source,
+                target=target,
+                copy_inventory=configuration.free_gifts_copy_inventory,
+                client=client,
+            )
+            await publish_gift_product(
+                shop_domain=shop_domain,
+                access_token=access_token,
+                product_id=gift.product_id,
+                publication_id=cast(str, publication_id),
+                client=client,
+            )
+            synchronized_offers.append(
+                offer.model_copy(
+                    update={
+                        "variant_id": gift.variant.variant_id,
+                        "variant_title": gift.variant.title,
+                    }
+                )
+            )
+            synchronized_bindings[offer.id] = {
+                "product_id": gift.product_id,
+                "variant_id": gift.variant.variant_id,
+                "source_variant_id": offer.source_variant_id,
+            }
+    except (KeyError, TypeError, ShopifyUpstreamError, httpx.HTTPError) as exc:
+        raise ShopifyUnavailableError from exc
+
+    return (
+        configuration.model_copy(update={"free_gift_offers": synchronized_offers}),
+        synchronized_bindings,
+    )
+
+
 def free_gift_automatic_discount_input(offer: FreeGiftOffer) -> dict[str, Any]:
     return {
         "title": f"pragma-site-cart gift: {offer.title}",
@@ -335,9 +849,7 @@ def free_gift_automatic_discount_input(offer: FreeGiftOffer) -> dict[str, Any]:
                 "namespace": FREE_GIFT_METAFIELD_NAMESPACE,
                 "key": FREE_GIFT_METAFIELD_KEY,
                 "type": "json",
-                "value": json.dumps(
-                    free_gift_function_configuration(offer), separators=(",", ":")
-                ),
+                "value": json.dumps(free_gift_function_configuration(offer), separators=(",", ":")),
             }
         ],
     }
@@ -369,9 +881,11 @@ async def sync_free_gift_discounts(
     access_token = await get_valid_access_token(
         shop_domain=shop_domain, db=db, client=client, cipher=cipher
     )
-    desired_offers = {
-        offer.id: offer for offer in configuration.free_gift_offers
-    } if configuration.free_gifts_enabled else {}
+    desired_offers = (
+        {offer.id: offer for offer in configuration.free_gift_offers}
+        if configuration.free_gifts_enabled
+        else {}
+    )
     synced_ids: dict[str, str] = {}
 
     try:

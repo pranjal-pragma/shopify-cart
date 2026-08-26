@@ -57,10 +57,29 @@ Private Shopify line-item properties use the `_pragma_site_cart_*` namespace:
 The Discount Function queries `_pragma_site_cart_free_gift_offer`. A mismatch between the query
 and the theme property causes gifts to retain their normal checkout price.
 
+## Free-gift product identity
+
+Every offer has two variant identities:
+
+- `source_variant_id` and `source_variant_title` identify the merchant-selected catalog variant.
+  Backend synchronization reads this variant but never modifies it.
+- `variant_id` and `variant_title` identify the dedicated `pragma-site-cart` gift variant used by
+  the storefront and Discount Function.
+
+Generated products use the deterministic handle `pragma-site-cart-gift-{offer_id}`, have product
+type `pragma-site-cart gift`, are `UNLISTED`, and are published to Online Store so Shopify Ajax Cart
+can add them. Hidden persisted configuration `_free_gift_product_bindings` maps offer IDs to the
+generated product and variant IDs for cleanup.
+
+When `free_gifts_copy_inventory` is enabled, saving synchronizes SKU, barcode, inventory tracking,
+inventory policy, and available quantities at the source variant's active locations. When it is
+disabled, the generated gift variant is untracked with blank SKU and barcode. Neither mode writes
+to the source product or source inventory item. Removing an offer or disabling free gifts archives
+its generated product.
+
 ## Configuration naming
 
 - The app-provided font source value is `pragma-site-cart`; `theme` selects storefront fonts.
 - The checkout configuration field is `pragma_site_cart_checkout`.
 - Appearance and feature fields are validated with `extra="forbid"`; add fields to both Pydantic
   and TypeScript contracts before using them.
-

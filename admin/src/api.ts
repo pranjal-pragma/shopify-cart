@@ -123,6 +123,8 @@ export interface FreeGiftOffer {
   title: string;
   starts_at: string;
   ends_at: string;
+  source_variant_id: string;
+  source_variant_title: string;
   variant_id: string;
   variant_title: string;
   eligibility_type: 'cart_subtotal' | 'cart_quantity';

@@ -9,6 +9,13 @@
 
 Use `.env.example` and `admin/.env.example` as templates. Never commit real credentials.
 
+The free-gift product and inventory synchronization requires these Shopify scopes:
+
+`read_products,write_products,read_inventory,write_inventory,read_publications,write_publications,write_discounts`
+
+After adding or changing scopes, regenerate `shopify.app.toml`, restart `shopify app dev`, and
+approve the updated permissions for the development store.
+
 ## Install and prepare
 
 ```bash
@@ -72,4 +79,3 @@ preview update finish successfully in the CLI output.
 
 The embedded app should be opened from Shopify Admin so App Bridge has the required host and
 session context. The local `?preview=1` mode is for isolated admin UI development only.
-
