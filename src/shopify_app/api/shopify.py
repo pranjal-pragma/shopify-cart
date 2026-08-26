@@ -12,6 +12,8 @@ from shopify_app.db import get_db
 from shopify_app.schemas import (
     CartAppearanceConfiguration,
     CartAppearanceResponse,
+    CartFeaturesConfiguration,
+    CartFeaturesResponse,
     MerchantResponse,
     ShopConnectionResponse,
 )
@@ -92,6 +94,27 @@ async def update_cart_appearance(
     cipher: Annotated[TokenCipher, Depends(get_token_cipher)],
 ) -> CartAppearanceResponse:
     return await shopify_controller.save_cart_appearance(
+        auth=auth, configuration=configuration, db=db, client=client, cipher=cipher
+    )
+
+
+@router.get("/features", response_model=CartFeaturesResponse)
+async def cart_features(
+    auth: Annotated[tuple[str, str], Depends(authenticate_session_token)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CartFeaturesResponse:
+    return await shopify_controller.get_cart_features(auth=auth, db=db)
+
+
+@router.put("/features", response_model=CartFeaturesResponse)
+async def update_cart_features(
+    configuration: CartFeaturesConfiguration,
+    auth: Annotated[tuple[str, str], Depends(authenticate_session_token)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    client: Annotated[ShopifyClient, Depends(get_shopify_client)],
+    cipher: Annotated[TokenCipher, Depends(get_token_cipher)],
+) -> CartFeaturesResponse:
+    return await shopify_controller.save_cart_features(
         auth=auth, configuration=configuration, db=db, client=client, cipher=cipher
     )
 

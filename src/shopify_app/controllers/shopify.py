@@ -12,6 +12,8 @@ from shopify_app.models import CartAppearance
 from shopify_app.schemas import (
     CartAppearanceConfiguration,
     CartAppearanceResponse,
+    CartFeaturesConfiguration,
+    CartFeaturesResponse,
     MerchantResponse,
     ShopConnectionResponse,
 )
@@ -29,6 +31,12 @@ from shopify_app.services.shopify import (
 from shopify_app.shopify_client import ShopifyClient
 
 logger = structlog.get_logger()
+
+
+def configuration_section(
+    configuration: dict[str, object], fields: set[str]
+) -> dict[str, object]:
+    return {key: value for key, value in configuration.items() if key in fields}
 
 
 async def exchange_token(
@@ -86,6 +94,52 @@ def default_cart_appearance() -> CartAppearanceConfiguration:
     )
 
 
+def default_cart_features() -> CartFeaturesConfiguration:
+    return CartFeaturesConfiguration()
+
+
+async def publish_and_store_cart_configuration(
+    *,
+    shop_domain: str,
+    section: dict[str, object],
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> CartAppearance:
+    appearance = await db.get(CartAppearance, shop_domain)
+    defaults = {
+        **default_cart_appearance().model_dump(mode="json"),
+        **default_cart_features().model_dump(mode="json"),
+    }
+    combined = {**defaults, **(appearance.configuration if appearance else {}), **section}
+    try:
+        await publish_cart_appearance(
+            shop_domain=shop_domain,
+            configuration=combined,
+            db=db,
+            client=client,
+            cipher=cipher,
+        )
+    except TokenExchangeRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
+        ) from exc
+    except ShopifyUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not publish cart configuration to Shopify",
+        ) from exc
+
+    if appearance is None:
+        appearance = CartAppearance(shop_domain=shop_domain, configuration=combined)
+        db.add(appearance)
+    else:
+        appearance.configuration = combined
+    await db.commit()
+    await db.refresh(appearance)
+    return appearance
+
+
 async def get_cart_appearance(
     *, auth: tuple[str, str], db: AsyncSession
 ) -> CartAppearanceResponse:
@@ -95,8 +149,11 @@ async def get_cart_appearance(
     )
     if appearance is None:
         return CartAppearanceResponse(**default_cart_appearance().model_dump())
+    section = configuration_section(
+        appearance.configuration, set(CartAppearanceConfiguration.model_fields)
+    )
     return CartAppearanceResponse(
-        **CartAppearanceConfiguration.model_validate(appearance.configuration).model_dump(),
+        **CartAppearanceConfiguration.model_validate(section).model_dump(),
         updated_at=appearance.updated_at.isoformat(),
     )
 
@@ -111,36 +168,51 @@ async def save_cart_appearance(
 ) -> CartAppearanceResponse:
     _, shop_domain = auth
     serialized = configuration.model_dump(mode="json")
-    try:
-        await publish_cart_appearance(
-            shop_domain=shop_domain,
-            configuration=serialized,
-            db=db,
-            client=client,
-            cipher=cipher,
-        )
-    except TokenExchangeRequiredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
-        ) from exc
-    except ShopifyUnavailableError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Could not publish cart appearance to Shopify",
-        ) from exc
+    appearance = await publish_and_store_cart_configuration(
+        shop_domain=shop_domain,
+        section=serialized,
+        db=db,
+        client=client,
+        cipher=cipher,
+    )
+    return CartAppearanceResponse(
+        **configuration.model_dump(), updated_at=appearance.updated_at.isoformat()
+    )
 
+
+async def get_cart_features(
+    *, auth: tuple[str, str], db: AsyncSession
+) -> CartFeaturesResponse:
+    _, shop_domain = auth
     appearance = await db.get(CartAppearance, shop_domain)
     if appearance is None:
-        appearance = CartAppearance(
-            shop_domain=shop_domain,
-            configuration=serialized,
-        )
-        db.add(appearance)
-    else:
-        appearance.configuration = serialized
-    await db.commit()
-    await db.refresh(appearance)
-    return CartAppearanceResponse(
+        return CartFeaturesResponse(**default_cart_features().model_dump())
+    section = configuration_section(
+        appearance.configuration, set(CartFeaturesConfiguration.model_fields)
+    )
+    return CartFeaturesResponse(
+        **CartFeaturesConfiguration.model_validate(section).model_dump(),
+        updated_at=appearance.updated_at.isoformat(),
+    )
+
+
+async def save_cart_features(
+    *,
+    auth: tuple[str, str],
+    configuration: CartFeaturesConfiguration,
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> CartFeaturesResponse:
+    _, shop_domain = auth
+    appearance = await publish_and_store_cart_configuration(
+        shop_domain=shop_domain,
+        section=configuration.model_dump(mode="json"),
+        db=db,
+        client=client,
+        cipher=cipher,
+    )
+    return CartFeaturesResponse(
         **configuration.model_dump(), updated_at=appearance.updated_at.isoformat()
     )
 

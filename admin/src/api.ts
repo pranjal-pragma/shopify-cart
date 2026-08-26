@@ -108,14 +108,96 @@ export interface CartAppearanceResponse extends CartAppearanceConfiguration {
   updated_at: string | null;
 }
 
+export interface FreeGiftOffer {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  variant_id: string;
+  variant_title: string;
+  eligibility_type: 'cart_subtotal' | 'cart_quantity';
+  threshold: number;
+}
+
+export interface TierReward {
+  id: string;
+  goal: number;
+  reward_type: 'shipping' | 'free_gift' | 'discount' | 'custom';
+  reward_text: string;
+  before_text: string;
+}
+
+export interface ProductSwapRule {
+  id: string;
+  enabled: boolean;
+  trigger_scope: 'product' | 'collection';
+  trigger_id: string;
+  trigger_title: string;
+  use_case: 'size_upgrade' | 'alternative' | 'multipack';
+  target_variant_id: string;
+  target_variant_title: string;
+  pill_label: string;
+  nudge_strategy: 'automatic' | 'mrp_discount' | 'custom';
+}
+
+export interface ProductSwapSizeGroup {
+  id: string;
+  title: string;
+  variant_ids: string[];
+  variant_titles: string[];
+}
+
+export interface CartFeaturesConfiguration {
+  discount_mode: 'checkout_offers' | 'hide' | 'discount_box';
+  order_notes_enabled: boolean;
+  order_notes_title: string;
+  free_gifts_enabled: boolean;
+  free_gifts_copy_inventory: boolean;
+  free_gift_method: 'auto' | 'choice';
+  free_gift_offers: FreeGiftOffer[];
+  free_gift_congratulations: boolean;
+  tiered_rewards_enabled: boolean;
+  tiered_reward_condition: 'cart_subtotal' | 'cart_quantity' | 'cart_discount_price';
+  tiered_rewards: TierReward[];
+  tiered_primary_color: string;
+  tiered_secondary_color: string;
+  tiered_confetti_enabled: boolean;
+  tiered_applicable_on: 'products' | 'collections' | 'all';
+  tiered_exclude_discounts: boolean;
+  tiered_completion_text: string;
+  one_tick_enabled: boolean;
+  one_tick_text: RichTextStyle;
+  one_tick_variant_id: string | null;
+  one_tick_variant_title: string;
+  one_tick_sku_enabled: boolean;
+  one_tick_disable_quantity_changes: boolean;
+  one_tick_disable_checkout_only: boolean;
+  product_swap_enabled: boolean;
+  product_swap_coexistence: 'swap' | 'upsell';
+  product_swap_automatic_upgrade: boolean;
+  product_swap_rules: ProductSwapRule[];
+  product_swap_size_groups: ProductSwapSizeGroup[];
+}
+
+export interface CartFeaturesResponse extends CartFeaturesConfiguration {
+  updated_at: string | null;
+}
+
+export interface ShopifyResource {
+  id: string;
+  title?: string;
+  displayName?: string;
+  variants?: ShopifyResource[];
+}
+
 interface ShopifyGlobal {
   idToken(): Promise<string>;
   resourcePicker(options: {
-    type: 'variant';
+    type: 'variant' | 'product' | 'collection';
     action?: 'add' | 'select';
     multiple?: boolean | number;
     selectionIds?: {id: string}[];
-  }): Promise<{id: string; title?: string; displayName?: string}[] | undefined>;
+  }): Promise<ShopifyResource[] | undefined>;
 }
 
 declare global {
@@ -164,4 +246,21 @@ export async function saveCartAppearance(
     }),
   );
   return response.json() as Promise<CartAppearanceResponse>;
+}
+
+export async function getCartFeatures(): Promise<CartFeaturesResponse> {
+  const response = await requireOk(await authenticatedFetch('/api/v1/shopify/features'));
+  return response.json() as Promise<CartFeaturesResponse>;
+}
+
+export async function saveCartFeatures(
+  configuration: CartFeaturesConfiguration,
+): Promise<CartFeaturesResponse> {
+  const response = await requireOk(
+    await authenticatedFetch('/api/v1/shopify/features', {
+      method: 'PUT',
+      body: JSON.stringify(configuration),
+    }),
+  );
+  return response.json() as Promise<CartFeaturesResponse>;
 }

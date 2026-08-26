@@ -201,9 +201,14 @@
         && cart?.items?.length
         && cart.items.every((item) => isTruthy(item.properties?._gokwik_upsell)),
       );
+      const oneTickOnly = Boolean(
+        configuration.one_tick_disable_checkout_only
+        && cart?.items?.length
+        && cart.items.every((item) => isTruthy(item.properties?._gokwik_one_tick)),
+      );
       const reason = !termsAccepted
         ? 'Accept the Terms & Conditions to continue.'
-        : upsellOnly ? 'Add a regular product before checkout.' : '';
+        : upsellOnly || oneTickOnly ? 'Add a regular product before checkout.' : '';
       checkout.classList.toggle('gk-cart-checkout-button--disabled', Boolean(reason));
       checkout.setAttribute('aria-disabled', String(Boolean(reason)));
       checkout.dataset.gkBlockedReason = reason;

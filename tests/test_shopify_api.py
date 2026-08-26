@@ -246,6 +246,61 @@ async def test_cart_appearance_publishes_sales_period_and_rejects_invalid_range(
     assert invalid.status_code == 422
 
 
+async def test_cart_features_persist_and_survive_appearance_saves(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    feature_response = await client.get("/api/v1/shopify/features", headers=headers)
+    assert feature_response.status_code == 200
+    features = feature_response.json()
+    assert features["discount_mode"] == "discount_box"
+    assert features["order_notes_enabled"] is True
+    assert features["free_gift_offers"] == []
+
+    features.pop("updated_at")
+    features["discount_mode"] = "hide"
+    features["order_notes_title"] = "Delivery instructions"
+    saved_features = await client.put(
+        "/api/v1/shopify/features", headers=headers, json=features
+    )
+    assert saved_features.status_code == 200
+    assert saved_features.json()["order_notes_title"] == "Delivery instructions"
+
+    appearance = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
+    appearance.pop("updated_at")
+    appearance["theme_color"] = "#135E46"
+    saved_appearance = await client.put(
+        "/api/v1/shopify/appearance", headers=headers, json=appearance
+    )
+    assert saved_appearance.status_code == 200
+
+    reloaded = await client.get("/api/v1/shopify/features", headers=headers)
+    assert reloaded.status_code == 200
+    assert reloaded.json()["discount_mode"] == "hide"
+    assert reloaded.json()["order_notes_title"] == "Delivery instructions"
+
+
+async def test_cart_features_validate_enabled_campaigns(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    features = (await client.get("/api/v1/shopify/features", headers=headers)).json()
+    features.pop("updated_at")
+    features["free_gifts_enabled"] = True
+
+    invalid_gifts = await client.put(
+        "/api/v1/shopify/features", headers=headers, json=features
+    )
+    assert invalid_gifts.status_code == 422
+
+    features["free_gifts_enabled"] = False
+    features["one_tick_enabled"] = True
+    invalid_one_tick = await client.put(
+        "/api/v1/shopify/features", headers=headers, json=features
+    )
+    assert invalid_one_tick.status_code == 422
+
+
 def test_cart_appearance_migrates_legacy_scarcity_text() -> None:
     configuration = {
         **CartAppearanceConfiguration.model_validate(

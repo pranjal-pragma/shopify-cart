@@ -19,6 +19,7 @@ import {useCallback, useEffect, useState} from 'react';
 
 import {connectMerchant, type Merchant} from './api';
 import {CartAppearancePage} from './CartAppearancePage';
+import {CartFeaturesPage} from './CartFeaturesPage';
 import './styles.css';
 
 const SUPPORT_EMAIL = 'merchantcare@gokwik.co';
@@ -73,7 +74,7 @@ function AppShell({children, pageId = 'home'}: {children: React.ReactNode; pageI
         <s-link href="/#checkout">Checkout</s-link>
         <s-link href="/#pricing">Pricing</s-link>
       </s-app-nav>
-      <main className={`page${pageId === 'appearance' ? ' page--appearance' : ''}`} id={pageId}>
+      <main className={`page${pageId === 'appearance' || pageId === 'features' ? ' page--appearance' : ''}`} id={pageId}>
         {children}
       </main>
     </div>
@@ -286,6 +287,9 @@ export default function App() {
   if (!merchant) return <LoadingState />;
   if (route === '#appearance') {
     return <AppShell pageId="appearance"><CartAppearancePage previewMode={Boolean(previewMerchant)} /></AppShell>;
+  }
+  if (route === '#features') {
+    return <AppShell pageId="features"><CartFeaturesPage previewMode={Boolean(previewMerchant)} /></AppShell>;
   }
   return <HomePage merchant={merchant} />;
 }

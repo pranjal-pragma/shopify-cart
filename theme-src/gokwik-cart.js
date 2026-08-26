@@ -127,6 +127,11 @@
       return marked || fullyDiscounted;
     };
 
+    const isOneTickItem = (item) => {
+      const marker = item.properties?._gokwik_one_tick;
+      return marker === true || ['true', '1', 'yes'].includes(String(marker).toLowerCase());
+    };
+
     const createCartItem = (item, line, freeGift) => {
       const row = document.createElement('li');
       row.className = 'gk-cart-item';
@@ -184,10 +189,12 @@
       quantity.setAttribute('aria-label', `Quantity for ${item.product_title}`);
       const decrease = createButton(`Decrease ${item.product_title} quantity`, 'decrease', line, '\u2212');
       const increase = createButton(`Increase ${item.product_title} quantity`, 'increase', line, '+');
-      if (freeGift && appearance.allow_free_item_quantity_changes !== true) {
+      const lockFreeGift = freeGift && appearance.allow_free_item_quantity_changes !== true;
+      const lockOneTick = isOneTickItem(item) && appearance.one_tick_disable_quantity_changes === true;
+      if (lockFreeGift || lockOneTick) {
         [decrease, increase].forEach((button) => {
           button.disabled = true;
-          button.title = 'Quantity is fixed for free items';
+          button.title = lockFreeGift ? 'Quantity is fixed for free items' : 'Quantity is fixed for this add-on';
         });
       }
       quantity.append(decrease);
@@ -337,8 +344,10 @@
       const action = actionTarget.dataset.gkAction;
       if (
         action !== 'remove'
-        && isFreeGift(currentItem)
-        && appearance.allow_free_item_quantity_changes !== true
+        && (
+          (isFreeGift(currentItem) && appearance.allow_free_item_quantity_changes !== true)
+          || (isOneTickItem(currentItem) && appearance.one_tick_disable_quantity_changes === true)
+        )
       ) return;
       const quantity = action === 'remove' ? 0 : currentItem.quantity + (action === 'increase' ? 1 : -1);
       changeLine(line, Math.max(0, quantity));

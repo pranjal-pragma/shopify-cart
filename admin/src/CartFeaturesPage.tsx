@@ -1,0 +1,248 @@
+import {
+  Bold,
+  Gift,
+  Italic,
+  PackageSearch,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Underline,
+  X,
+} from 'lucide-react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
+
+import {
+  getCartFeatures,
+  saveCartFeatures,
+  type CartFeaturesConfiguration,
+  type FreeGiftOffer,
+  type ProductSwapRule,
+  type ProductSwapSizeGroup,
+  type RichTextStyle,
+  type ShopifyResource,
+  type TierReward,
+} from './api';
+
+type FeatureView = 'discounts' | 'notes' | 'gifts' | 'rewards' | 'one_tick' | 'swap';
+type Update = <K extends keyof CartFeaturesConfiguration>(key: K, value: CartFeaturesConfiguration[K]) => void;
+
+const featureViews: {id: FeatureView; label: string}[] = [
+  {id: 'discounts', label: 'Discounts setup'},
+  {id: 'notes', label: 'Order notes'},
+  {id: 'gifts', label: 'Free gifts'},
+  {id: 'rewards', label: 'Tiered reward'},
+  {id: 'one_tick', label: 'One-tick upsell'},
+  {id: 'swap', label: 'Product swap'},
+];
+
+const richText = (text: string): RichTextStyle => ({text, bold: false, italic: false, underline: false, font_size: 14});
+const itemId = () => crypto.randomUUID().replaceAll('-', '').slice(0, 16);
+const clone = (configuration: CartFeaturesConfiguration) => structuredClone(configuration);
+
+const toLocalDateTime = (value: string) => {
+  const date = new Date(value);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+};
+const fromLocalDateTime = (value: string) => new Date(value).toISOString();
+
+const newGiftOffer = (): FreeGiftOffer => {
+  const startsAt = new Date();
+  startsAt.setSeconds(0, 0);
+  const endsAt = new Date(startsAt.getTime() + 7 * 86_400_000);
+  return {
+    id: itemId(),
+    title: 'Free gift unlocked',
+    starts_at: startsAt.toISOString(),
+    ends_at: endsAt.toISOString(),
+    variant_id: '',
+    variant_title: '',
+    eligibility_type: 'cart_subtotal',
+    threshold: 999,
+  };
+};
+
+const newReward = (): TierReward => ({
+  id: itemId(),
+  goal: 999,
+  reward_type: 'shipping',
+  reward_text: 'Free shipping',
+  before_text: 'Spend more to unlock free shipping',
+});
+
+const newSwapRule = (): ProductSwapRule => ({
+  id: itemId(),
+  enabled: true,
+  trigger_scope: 'product',
+  trigger_id: '',
+  trigger_title: '',
+  use_case: 'size_upgrade',
+  target_variant_id: '',
+  target_variant_title: '',
+  pill_label: 'Upgrade now',
+  nudge_strategy: 'automatic',
+});
+
+const newSizeGroup = (): ProductSwapSizeGroup => ({
+  id: itemId(),
+  title: 'Size ladder',
+  variant_ids: [],
+  variant_titles: [],
+});
+
+export const defaultFeatures: CartFeaturesConfiguration = {
+  discount_mode: 'discount_box',
+  order_notes_enabled: true,
+  order_notes_title: 'Add special instructions',
+  free_gifts_enabled: false,
+  free_gifts_copy_inventory: true,
+  free_gift_method: 'auto',
+  free_gift_offers: [],
+  free_gift_congratulations: true,
+  tiered_rewards_enabled: false,
+  tiered_reward_condition: 'cart_subtotal',
+  tiered_rewards: [],
+  tiered_primary_color: '#F10A0A',
+  tiered_secondary_color: '#E5E7EB',
+  tiered_confetti_enabled: true,
+  tiered_applicable_on: 'all',
+  tiered_exclude_discounts: false,
+  tiered_completion_text: 'All rewards unlocked',
+  one_tick_enabled: false,
+  one_tick_text: richText('Add gift wrapping'),
+  one_tick_variant_id: null,
+  one_tick_variant_title: '',
+  one_tick_sku_enabled: false,
+  one_tick_disable_quantity_changes: false,
+  one_tick_disable_checkout_only: false,
+  product_swap_enabled: false,
+  product_swap_coexistence: 'swap',
+  product_swap_automatic_upgrade: true,
+  product_swap_rules: [],
+  product_swap_size_groups: [],
+};
+
+function Toggle({checked, label, description, onChange}: {checked: boolean; label: string; description?: string; onChange: (value: boolean) => void}) {
+  return <label className="setting-toggle"><span className="setting-toggle__copy"><strong>{label}</strong>{description && <small>{description}</small>}</span><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span className="toggle-track" aria-hidden="true"><span /></span></label>;
+}
+
+function Field({label, value, onChange, type = 'text', maxLength}: {label: string; value: string | number; onChange: (value: string) => void; type?: 'text' | 'number' | 'datetime-local'; maxLength?: number}) {
+  return <label className="field"><span>{label}</span><input type={type} value={value} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} />{maxLength && <small>{String(value).length} / {maxLength}</small>}</label>;
+}
+
+function SelectField({label, value, options, onChange}: {label: string; value: string; options: {value: string; label: string}[]; onChange: (value: string) => void}) {
+  return <label className="field"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>;
+}
+
+function ColorField({label, value, onChange}: {label: string; value: string; onChange: (value: string) => void}) {
+  return <label className="field color-field"><span>{label}</span><span className="color-input-wrap"><input className="color-swatch" type="color" value={value} onChange={(event) => onChange(event.target.value.toUpperCase())} /><input value={value} maxLength={7} onChange={(event) => onChange(event.target.value.toUpperCase())} aria-label={`${label} hex value`} /></span></label>;
+}
+
+function RichField({label, value, onChange}: {label: string; value: RichTextStyle; onChange: (value: RichTextStyle) => void}) {
+  const set = <K extends keyof RichTextStyle>(key: K, next: RichTextStyle[K]) => onChange({...value, [key]: next});
+  return <div className="field rich-field"><span>{label}</span><div className="rich-toolbar" aria-label={`${label} formatting`}><button className={value.bold ? 'is-active' : ''} type="button" onClick={() => set('bold', !value.bold)} aria-label="Bold"><Bold size={15} /></button><button className={value.italic ? 'is-active' : ''} type="button" onClick={() => set('italic', !value.italic)} aria-label="Italic"><Italic size={15} /></button><button className={value.underline ? 'is-active' : ''} type="button" onClick={() => set('underline', !value.underline)} aria-label="Underline"><Underline size={15} /></button><select value={value.font_size} onChange={(event) => set('font_size', Number(event.target.value) as RichTextStyle['font_size'])} aria-label="Font size">{[12, 14, 16, 18, 20].map((size) => <option value={size} key={size}>{size}px</option>)}</select></div><input value={value.text} maxLength={64} onChange={(event) => set('text', event.target.value)} /><small>{value.text.length} / 64</small></div>;
+}
+
+async function pickResource(type: 'variant' | 'product' | 'collection', selectedId?: string | null): Promise<ShopifyResource | null> {
+  if (!window.shopify?.resourcePicker) return null;
+  const selected = await window.shopify.resourcePicker({type, action: 'select', multiple: false, selectionIds: selectedId ? [{id: selectedId}] : undefined});
+  return selected?.[0] ?? null;
+}
+
+function ResourceField({label, value, title, type, previewMode, onChange}: {label: string; value: string | null; title: string; type: 'variant' | 'product' | 'collection'; previewMode: boolean; onChange: (resource: ShopifyResource | null) => void}) {
+  return <div className="field"><span>{label}</span>{value ? <div className="selected-resource"><span><strong>{title}</strong><small>{value}</small></span><button className="icon-button" type="button" onClick={() => onChange(null)} aria-label={`Clear ${label}`}><X size={15} /></button></div> : <button className="button button--secondary resource-picker-button" type="button" disabled={previewMode || !window.shopify?.resourcePicker} onClick={async () => onChange(await pickResource(type, value))}><PackageSearch size={16} />Select {type}</button>}</div>;
+}
+
+function Section({title, description, children}: {title: string; description?: string; children: React.ReactNode}) {
+  return <section className="appearance-section"><header><h2>{title}</h2>{description && <p>{description}</p>}</header><div className="appearance-section__body">{children}</div></section>;
+}
+
+function ChoiceGroup({name, value, options, onChange, columns = 3}: {name: string; value: string; options: {value: string; label: string; description?: string}[]; onChange: (value: string) => void; columns?: 2 | 3}) {
+  return <div className={`choice-list ${columns === 2 ? 'choice-list--two' : 'choice-list--compact'}`} role="radiogroup" aria-label={name}>{options.map((option) => <label key={option.value}><input type="radio" name={name} checked={value === option.value} onChange={() => onChange(option.value)} /><span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span></label>)}</div>;
+}
+
+function ItemHeader({title, onRemove}: {title: string; onRemove: () => void}) {
+  return <div className="feature-item__header"><strong>{title}</strong><button className="icon-button icon-button--danger" type="button" onClick={onRemove} aria-label={`Remove ${title}`} title="Remove"><Trash2 size={15} /></button></div>;
+}
+
+function FeaturePreview({configuration, activeView}: {configuration: CartFeaturesConfiguration; activeView: FeatureView}) {
+  const reward = [...configuration.tiered_rewards].sort((a, b) => a.goal - b.goal)[0];
+  const progress = reward ? Math.min(100, Math.round(749 / reward.goal * 100)) : 0;
+  return <aside className="features-preview" aria-label="Cart features preview"><div className="features-preview__header"><div><strong>Your cart</strong><small>2 items</small></div><X size={18} /></div>{configuration.tiered_rewards_enabled && reward && <div className="features-preview__reward"><span>{reward.before_text}</span><i style={{background: configuration.tiered_secondary_color}}><b style={{background: configuration.tiered_primary_color, width: `${progress}%`}} /></i><small>{reward.reward_text}</small></div>}<div className="features-preview__products"><div className="features-preview__product"><span className="features-preview__image" /><div><strong>Everyday tote</strong><small>Black / Medium</small>{configuration.product_swap_enabled && activeView === 'swap' && <em>{configuration.product_swap_rules[0]?.pill_label || 'Upgrade available'}</em>}</div><b>Rs. 749</b></div>{configuration.free_gifts_enabled && configuration.free_gift_offers[0] && <div className="features-preview__gift"><Gift size={17} /><span><strong>{configuration.free_gift_offers[0].title}</strong><small>{configuration.free_gift_method === 'auto' ? 'Added automatically' : 'Choose your gift'}</small></span><b>FREE</b></div>}</div><div className="features-preview__tools">{configuration.discount_mode === 'discount_box' && <div className="features-preview__coupon">Enter coupon code <button type="button">Apply</button></div>}{configuration.discount_mode === 'checkout_offers' && <div className="features-preview__offer"><Sparkles size={15} />Available checkout offers</div>}{configuration.order_notes_enabled && <div className="features-preview__note">{configuration.order_notes_title}</div>}{configuration.one_tick_enabled && <label className="features-preview__addon"><input type="checkbox" /> <span>{configuration.one_tick_text.text}<small>{configuration.one_tick_variant_title || 'Selected add-on'}</small></span></label>}</div><div className="features-preview__footer"><span>Estimated total</span><strong>Rs. 749</strong><button type="button">Checkout</button></div></aside>;
+}
+
+function validate(configuration: CartFeaturesConfiguration): string | null {
+  if (configuration.free_gifts_enabled && !configuration.free_gift_offers.length) return 'Add at least one free gift offer.';
+  for (const offer of configuration.free_gift_offers) {
+    if (!offer.title.trim() || !offer.variant_id) return 'Complete every free gift offer.';
+    if (Date.parse(offer.ends_at) <= Date.parse(offer.starts_at)) return 'Free gift end time must be after its start time.';
+  }
+  if (configuration.tiered_rewards_enabled && !configuration.tiered_rewards.length) return 'Add at least one tiered reward.';
+  if (configuration.tiered_rewards.some((reward) => reward.goal <= 0 || !reward.reward_text.trim() || !reward.before_text.trim())) return 'Complete every tiered reward.';
+  if (!/^#[0-9A-F]{6}$/i.test(configuration.tiered_primary_color) || !/^#[0-9A-F]{6}$/i.test(configuration.tiered_secondary_color)) return 'Enter valid six-digit reward colors.';
+  if (configuration.one_tick_enabled && (!configuration.one_tick_variant_id || !configuration.one_tick_text.text.trim())) return 'Select a one-tick variant and enter display text.';
+  if (configuration.product_swap_rules.some((rule) => !rule.trigger_id || !rule.target_variant_id || !rule.pill_label.trim())) return 'Complete every product swap rule.';
+  if (configuration.product_swap_size_groups.some((group) => group.variant_ids.length < 2)) return 'Each size group needs at least two ordered variants.';
+  return null;
+}
+
+export function CartFeaturesPage({previewMode}: {previewMode: boolean}) {
+  const [configuration, setConfiguration] = useState(() => clone(defaultFeatures));
+  const [saved, setSaved] = useState(() => clone(defaultFeatures));
+  const [activeView, setActiveView] = useState<FeatureView>('discounts');
+  const [loading, setLoading] = useState(!previewMode);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const dirty = useMemo(() => JSON.stringify(configuration) !== JSON.stringify(saved), [configuration, saved]);
+  const update: Update = useCallback((key, value) => { setConfiguration((current) => ({...current, [key]: value})); setNotice(null); }, []);
+
+  useEffect(() => {
+    if (previewMode) return;
+    let active = true;
+    getCartFeatures().then(({updated_at: _updatedAt, ...next}) => { if (active) { setConfiguration(clone(next)); setSaved(clone(next)); } }).catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'Could not load cart features.'); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', prevent);
+    return () => window.removeEventListener('beforeunload', prevent);
+  }, [dirty]);
+
+  const save = async () => {
+    const validationError = validate(configuration);
+    if (validationError) { setError(validationError); return; }
+    setSaving(true); setError(null);
+    try {
+      let persisted = configuration;
+      if (!previewMode) {
+        const {updated_at: _updatedAt, ...response} = await saveCartFeatures(configuration);
+        persisted = response;
+        setConfiguration(clone(response));
+      }
+      setSaved(clone(persisted));
+      setNotice('Cart features saved.');
+      window.setTimeout(() => setNotice(null), 2600);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not save cart features.'); } finally { setSaving(false); }
+  };
+
+  const setOffer = (index: number, next: FreeGiftOffer) => update('free_gift_offers', configuration.free_gift_offers.map((offer, offerIndex) => offerIndex === index ? next : offer));
+  const setReward = (index: number, next: TierReward) => update('tiered_rewards', configuration.tiered_rewards.map((reward, rewardIndex) => rewardIndex === index ? next : reward));
+  const setRule = (index: number, next: ProductSwapRule) => update('product_swap_rules', configuration.product_swap_rules.map((rule, ruleIndex) => ruleIndex === index ? next : rule));
+  const setGroup = (index: number, next: ProductSwapSizeGroup) => update('product_swap_size_groups', configuration.product_swap_size_groups.map((group, groupIndex) => groupIndex === index ? next : group));
+
+  if (loading) return <div className="appearance-loading"><span className="spinner" /><p>Loading cart features...</p></div>;
+
+  return <div className="appearance-page features-page"><header className="appearance-header"><div><p className="eyebrow">Cart features</p><h1>Build offers that convert</h1><p>Configure discounts, notes, gifts, rewards, add-ons, and product upgrades.</p></div></header><nav className="features-tabs" aria-label="Cart feature views">{featureViews.map((view) => <button type="button" className={activeView === view.id ? 'is-active' : ''} aria-current={activeView === view.id ? 'page' : undefined} onClick={() => setActiveView(view.id)} key={view.id}>{view.label}</button>)}</nav>{error && <div className="inline-alert" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}{notice && <div className="save-toast" role="status"><ShieldCheck size={17} />{notice}</div>}<div className="appearance-workspace"><div className="appearance-editor">
+    {activeView === 'discounts' && <Section title="Discounts setup" description="Choose one discount experience for the side cart."><ChoiceGroup name="Discount behavior" value={configuration.discount_mode} columns={3} onChange={(value) => update('discount_mode', value as CartFeaturesConfiguration['discount_mode'])} options={[{value: 'checkout_offers', label: 'Show checkout offers', description: 'Display discounts configured in GoKwik Checkout.'}, {value: 'hide', label: 'Do not show offers', description: 'Keep discount entry out of the side cart.'}, {value: 'discount_box', label: 'Show discount box only', description: 'Let shoppers enter a coupon code.'}]} /></Section>}
+    {activeView === 'notes' && <Section title="Order notes" description="Collect special instructions and save them as the Shopify cart note."><Toggle checked={configuration.order_notes_enabled} label="Enable" onChange={(value) => update('order_notes_enabled', value)} />{configuration.order_notes_enabled && <Field label="Title text" value={configuration.order_notes_title} maxLength={120} onChange={(value) => update('order_notes_title', value)} />}</Section>}
+    {activeView === 'gifts' && <><Section title="Free gifts" description="Create zero-price gift offers and recalculate eligibility as the cart changes."><Toggle checked={configuration.free_gifts_enabled} label="Enable" onChange={(value) => update('free_gifts_enabled', value)} />{configuration.free_gifts_enabled && <div className="nested-settings"><Toggle checked={configuration.free_gifts_copy_inventory} label="Copy inventory setup from main product" description="Keep SKU, barcode, and inventory aligned for OMS synchronization." onChange={(value) => update('free_gifts_copy_inventory', value)} /><div className="field"><span>Gift addition method</span><ChoiceGroup name="Gift addition method" value={configuration.free_gift_method} columns={2} onChange={(value) => update('free_gift_method', value as CartFeaturesConfiguration['free_gift_method'])} options={[{value: 'auto', label: 'Auto add to cart'}, {value: 'choice', label: 'Let customers choose'}]} /></div><Toggle checked={configuration.free_gift_congratulations} label="Congratulations popup" description="Celebrate when a gift is added." onChange={(value) => update('free_gift_congratulations', value)} /></div>}</Section>{configuration.free_gifts_enabled && <Section title="Gift offers" description="Overlapping eligible offers stack; mutually exclusive tiers replace one another."><div className="feature-item-list">{configuration.free_gift_offers.map((offer, index) => <div className="feature-item" key={offer.id}><ItemHeader title={`Offer ${index + 1}`} onRemove={() => update('free_gift_offers', configuration.free_gift_offers.filter((item) => item.id !== offer.id))} /><Field label="Offer title" value={offer.title} maxLength={40} onChange={(value) => setOffer(index, {...offer, title: value})} /><div className="field-grid"><Field label="Start date" type="datetime-local" value={toLocalDateTime(offer.starts_at)} onChange={(value) => setOffer(index, {...offer, starts_at: fromLocalDateTime(value)})} /><Field label="End date" type="datetime-local" value={toLocalDateTime(offer.ends_at)} onChange={(value) => setOffer(index, {...offer, ends_at: fromLocalDateTime(value)})} /></div><div className="field-grid"><SelectField label="Eligibility" value={offer.eligibility_type} options={[{value: 'cart_subtotal', label: 'Cart subtotal'}, {value: 'cart_quantity', label: 'Cart quantity'}]} onChange={(value) => setOffer(index, {...offer, eligibility_type: value as FreeGiftOffer['eligibility_type']})} /><Field label="Minimum value" type="number" value={offer.threshold} onChange={(value) => setOffer(index, {...offer, threshold: Math.max(0, Number(value))})} /></div><ResourceField label="Gift variant" type="variant" previewMode={previewMode} value={offer.variant_id || null} title={offer.variant_title} onChange={(resource) => setOffer(index, {...offer, variant_id: resource?.id || '', variant_title: resource?.displayName || resource?.title || ''})} /></div>)}</div><button className="text-button" type="button" disabled={configuration.free_gift_offers.length >= 12} onClick={() => update('free_gift_offers', [...configuration.free_gift_offers, newGiftOffer()])}><Plus size={16} />Create another offer</button></Section>}</>}
+    {activeView === 'rewards' && <><Section title="Tiered reward" description="Build cart milestones that update as shoppers add products."><Toggle checked={configuration.tiered_rewards_enabled} label="Enable" onChange={(value) => update('tiered_rewards_enabled', value)} />{configuration.tiered_rewards_enabled && <div className="nested-settings"><div className="field"><span>Reward condition</span><ChoiceGroup name="Reward condition" value={configuration.tiered_reward_condition} onChange={(value) => update('tiered_reward_condition', value as CartFeaturesConfiguration['tiered_reward_condition'])} options={[{value: 'cart_subtotal', label: 'Cart subtotal'}, {value: 'cart_quantity', label: 'Cart quantity'}, {value: 'cart_discount_price', label: 'Cart discount price'}]} /></div><div className="field-grid"><ColorField label="Primary color" value={configuration.tiered_primary_color} onChange={(value) => update('tiered_primary_color', value)} /><ColorField label="Secondary color" value={configuration.tiered_secondary_color} onChange={(value) => update('tiered_secondary_color', value)} /></div><Toggle checked={configuration.tiered_confetti_enabled} label="Show confetti on goal achievement" onChange={(value) => update('tiered_confetti_enabled', value)} /><SelectField label="Applicable on" value={configuration.tiered_applicable_on} options={[{value: 'all', label: 'All products'}, {value: 'products', label: 'Specific products'}, {value: 'collections', label: 'Specific collections'}]} onChange={(value) => update('tiered_applicable_on', value as CartFeaturesConfiguration['tiered_applicable_on'])} /><Toggle checked={configuration.tiered_exclude_discounts} label="Exclude discounts from eligibility" onChange={(value) => update('tiered_exclude_discounts', value)} /><Field label="Text after all milestones" value={configuration.tiered_completion_text} maxLength={160} onChange={(value) => update('tiered_completion_text', value)} /></div>}</Section>{configuration.tiered_rewards_enabled && <Section title="Rewards"><div className="feature-item-list">{configuration.tiered_rewards.map((reward, index) => <div className="feature-item" key={reward.id}><ItemHeader title={`Reward ${index + 1}`} onRemove={() => update('tiered_rewards', configuration.tiered_rewards.filter((item) => item.id !== reward.id))} /><div className="field-grid"><Field label="Spend goal" type="number" value={reward.goal} onChange={(value) => setReward(index, {...reward, goal: Math.max(1, Number(value))})} /><SelectField label="Reward type" value={reward.reward_type} options={[{value: 'shipping', label: 'Shipping'}, {value: 'free_gift', label: 'Free gift'}, {value: 'discount', label: 'Discount'}, {value: 'custom', label: 'Custom'}]} onChange={(value) => setReward(index, {...reward, reward_type: value as TierReward['reward_type']})} /></div><Field label="Reward text" value={reward.reward_text} maxLength={16} onChange={(value) => setReward(index, {...reward, reward_text: value})} /><Field label="Text before hitting the goal" value={reward.before_text} maxLength={160} onChange={(value) => setReward(index, {...reward, before_text: value})} /></div>)}</div><button className="text-button" type="button" disabled={configuration.tiered_rewards.length >= 12} onClick={() => update('tiered_rewards', [...configuration.tiered_rewards, newReward()])}><Plus size={16} />Add reward</button></Section>}</>}
+    {activeView === 'one_tick' && <Section title="Cart-level one-tick upsell" description="Add gift wrapping or another cart add-on with one interaction."><Toggle checked={configuration.one_tick_enabled} label="Enable" onChange={(value) => update('one_tick_enabled', value)} />{configuration.one_tick_enabled && <div className="nested-settings"><RichField label="Text to display" value={configuration.one_tick_text} onChange={(value) => update('one_tick_text', value)} /><ResourceField label="Product variant" type="variant" previewMode={previewMode} value={configuration.one_tick_variant_id} title={configuration.one_tick_variant_title} onChange={(resource) => { update('one_tick_variant_id', resource?.id || null); update('one_tick_variant_title', resource?.displayName || resource?.title || ''); }} /><Toggle checked={configuration.one_tick_sku_enabled} label="Enable SKU-level add-ons" onChange={(value) => update('one_tick_sku_enabled', value)} /><Toggle checked={configuration.one_tick_disable_quantity_changes} label="Disable quantity changes on one-tick items" description="Lock each add-on to quantity one." onChange={(value) => update('one_tick_disable_quantity_changes', value)} /><Toggle checked={configuration.one_tick_disable_checkout_only} label="Disable checkout for only one-tick items" description="Require at least one regular cart item." onChange={(value) => update('one_tick_disable_checkout_only', value)} /></div>}</Section>}
+    {activeView === 'swap' && <><Section title="Product swap" description="Offer a one-tap replacement with a larger size or better-value pack."><Toggle checked={configuration.product_swap_enabled} label="Enable" onChange={(value) => update('product_swap_enabled', value)} />{configuration.product_swap_enabled && <div className="nested-settings"><div className="field"><span>One-tick coexistence</span><ChoiceGroup name="Swap coexistence" columns={2} value={configuration.product_swap_coexistence} onChange={(value) => update('product_swap_coexistence', value as CartFeaturesConfiguration['product_swap_coexistence'])} options={[{value: 'swap', label: 'Show swap only'}, {value: 'upsell', label: 'Show upsell only'}]} /></div><Toggle checked={configuration.product_swap_automatic_upgrade} label="Automatic variant upgrade" description="Offer the next higher-priced in-stock variant." onChange={(value) => update('product_swap_automatic_upgrade', value)} /></div>}</Section>{configuration.product_swap_enabled && <Section title="Manual swap rules"><div className="feature-item-list">{configuration.product_swap_rules.map((rule, index) => <div className="feature-item" key={rule.id}><ItemHeader title={`Rule ${index + 1}`} onRemove={() => update('product_swap_rules', configuration.product_swap_rules.filter((item) => item.id !== rule.id))} /><Toggle checked={rule.enabled} label="Enabled" onChange={(value) => setRule(index, {...rule, enabled: value})} /><SelectField label="Trigger scope" value={rule.trigger_scope} options={[{value: 'product', label: 'Specific product'}, {value: 'collection', label: 'Collection'}]} onChange={(value) => setRule(index, {...rule, trigger_scope: value as ProductSwapRule['trigger_scope'], trigger_id: '', trigger_title: ''})} /><ResourceField label="Trigger" type={rule.trigger_scope} previewMode={previewMode} value={rule.trigger_id || null} title={rule.trigger_title} onChange={(resource) => setRule(index, {...rule, trigger_id: resource?.id || '', trigger_title: resource?.title || resource?.displayName || ''})} /><SelectField label="Use case" value={rule.use_case} options={[{value: 'size_upgrade', label: 'Size upgrade'}, {value: 'alternative', label: 'Alternative product'}, {value: 'multipack', label: 'Multipack / bundle'}]} onChange={(value) => setRule(index, {...rule, use_case: value as ProductSwapRule['use_case']})} /><ResourceField label="Target variant" type="variant" previewMode={previewMode} value={rule.target_variant_id || null} title={rule.target_variant_title} onChange={(resource) => setRule(index, {...rule, target_variant_id: resource?.id || '', target_variant_title: resource?.displayName || resource?.title || ''})} /><div className="field-grid"><Field label="Pill label" value={rule.pill_label} maxLength={40} onChange={(value) => setRule(index, {...rule, pill_label: value})} /><SelectField label="Nudge strategy" value={rule.nudge_strategy} options={[{value: 'automatic', label: 'Automatic'}, {value: 'mrp_discount', label: 'MRP discount'}, {value: 'custom', label: 'Custom claim'}]} onChange={(value) => setRule(index, {...rule, nudge_strategy: value as ProductSwapRule['nudge_strategy']})} /></div></div>)}</div><button className="text-button" type="button" onClick={() => update('product_swap_rules', [...configuration.product_swap_rules, newSwapRule()])}><Plus size={16} />Add swap rule</button></Section>}{configuration.product_swap_enabled && <Section title="Size groups" description="Build ordered ladders where each selected variant is the next upgrade."><div className="feature-item-list">{configuration.product_swap_size_groups.map((group, index) => <div className="feature-item" key={group.id}><ItemHeader title={`Size group ${index + 1}`} onRemove={() => update('product_swap_size_groups', configuration.product_swap_size_groups.filter((item) => item.id !== group.id))} /><Field label="Group title" value={group.title} maxLength={80} onChange={(value) => setGroup(index, {...group, title: value})} /><ol className="size-group-list">{group.variant_titles.map((title, variantIndex) => <li key={group.variant_ids[variantIndex]}><span>{variantIndex + 1}</span><strong>{title}</strong><button className="icon-button" type="button" onClick={() => setGroup(index, {...group, variant_ids: group.variant_ids.filter((_, itemIndex) => itemIndex !== variantIndex), variant_titles: group.variant_titles.filter((_, itemIndex) => itemIndex !== variantIndex)})} aria-label={`Remove ${title}`}><X size={14} /></button></li>)}</ol><button className="button button--secondary" type="button" disabled={previewMode || !window.shopify?.resourcePicker} onClick={async () => { const resource = await pickResource('variant'); if (resource && !group.variant_ids.includes(resource.id)) setGroup(index, {...group, variant_ids: [...group.variant_ids, resource.id], variant_titles: [...group.variant_titles, resource.displayName || resource.title || resource.id]}); }}><Plus size={15} />Add next variant</button></div>)}</div><button className="text-button" type="button" onClick={() => update('product_swap_size_groups', [...configuration.product_swap_size_groups, newSizeGroup()])}><Plus size={16} />Add size group</button></Section>}</>}
+  </div><div className="preview-column"><div className="preview-column__heading"><span>Live preview</span><small>{featureViews.find((view) => view.id === activeView)?.label}</small></div><FeaturePreview configuration={configuration} activeView={activeView} /></div></div>{dirty && <div className="save-bar" role="region" aria-label="Unsaved changes"><span>Unsaved changes</span><div><button className="button button--secondary" type="button" onClick={() => { setConfiguration(clone(saved)); setError(null); }}><RotateCcw size={16} />Discard</button><button className="button button--primary" type="button" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button></div></div>}</div>;
+}

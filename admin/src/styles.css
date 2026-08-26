@@ -11,12 +11,12 @@
 }
 
 html {
-  min-width: 320px;
+  min-width: 0;
 }
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
 }
 
@@ -804,6 +804,7 @@ p {
 
 .field input,
 .field textarea,
+.field > select,
 .rich-toolbar select,
 .color-input-wrap {
   background: #ffffff;
@@ -815,7 +816,8 @@ p {
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field > select {
   min-height: 38px;
   padding: 8px 10px;
   width: 100%;
@@ -1805,6 +1807,328 @@ p {
 .save-bar .button--primary {
   background: #ffffff;
   color: #202124;
+}
+
+.features-tabs {
+  border-bottom: 1px solid #d9dade;
+  display: flex;
+  gap: 5px;
+  margin-bottom: 22px;
+  overflow-x: auto;
+  padding-bottom: 1px;
+  scrollbar-width: thin;
+}
+
+.features-tabs button {
+  background: transparent;
+  border: 0;
+  color: #696c73;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  min-height: 38px;
+  padding: 8px 11px;
+  position: relative;
+}
+
+.features-tabs button.is-active {
+  color: #202124;
+}
+
+.features-tabs button.is-active::after {
+  background: #202124;
+  bottom: -1px;
+  content: "";
+  height: 2px;
+  left: 8px;
+  position: absolute;
+  right: 8px;
+}
+
+.feature-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feature-item {
+  background: #f7f7f8;
+  border: 1px solid #dedfe2;
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+}
+
+.feature-item__header {
+  align-items: center;
+  border-bottom: 1px solid #dedfe2;
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 10px;
+}
+
+.feature-item__header strong {
+  color: #303137;
+  font-size: 12px;
+}
+
+.size-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.size-group-list li {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #dedfe2;
+  border-radius: 6px;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 24px minmax(0, 1fr) 30px;
+  min-height: 38px;
+  padding: 4px 5px 4px 9px;
+}
+
+.size-group-list li > span {
+  align-items: center;
+  background: #eceef0;
+  border-radius: 50%;
+  color: #555860;
+  display: inline-flex;
+  font-size: 10px;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
+.size-group-list strong {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.features-preview {
+  background: #ffffff;
+  border: 1px solid #d7d8db;
+  box-shadow: 0 14px 36px rgb(31 32 36 / 10%);
+  display: flex;
+  flex-direction: column;
+  min-height: 610px;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.features-preview__header {
+  align-items: center;
+  border-bottom: 1px solid #ececef;
+  display: flex;
+  justify-content: space-between;
+  min-height: 62px;
+  padding: 12px 17px;
+}
+
+.features-preview__header > div,
+.features-preview__gift span,
+.features-preview__addon span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.features-preview__header strong {
+  font-size: 16px;
+}
+
+.features-preview__header small,
+.features-preview__gift small,
+.features-preview__addon small {
+  color: #7a7d84;
+  font-size: 10px;
+}
+
+.features-preview__reward {
+  background: #f6f6f7;
+  border-bottom: 1px solid #ececef;
+  display: grid;
+  gap: 7px;
+  padding: 11px 17px;
+}
+
+.features-preview__reward span,
+.features-preview__reward small {
+  color: #53565d;
+  font-size: 10px;
+}
+
+.features-preview__reward i {
+  border-radius: 4px;
+  height: 5px;
+  overflow: hidden;
+}
+
+.features-preview__reward b {
+  display: block;
+  height: 100%;
+}
+
+.features-preview__products {
+  flex: 1;
+  padding: 4px 17px;
+}
+
+.features-preview__product {
+  align-items: start;
+  border-bottom: 1px solid #ededee;
+  display: grid;
+  gap: 11px;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  padding: 16px 0;
+}
+
+.features-preview__image {
+  background: #cdb18f;
+  border: 1px solid #b89a78;
+  border-radius: 4px;
+  height: 68px;
+  width: 58px;
+}
+
+.features-preview__product > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.features-preview__product strong,
+.features-preview__gift strong {
+  font-size: 12px;
+}
+
+.features-preview__product small {
+  color: #777a82;
+  font-size: 10px;
+}
+
+.features-preview__product > b {
+  font-size: 11px;
+}
+
+.features-preview__product em {
+  align-self: flex-start;
+  background: #eef4f1;
+  border: 1px solid #bad1c5;
+  border-radius: 4px;
+  color: #216849;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+  padding: 4px 6px;
+}
+
+.features-preview__gift {
+  align-items: center;
+  background: #fff8e8;
+  border: 1px solid #ead8ac;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  margin: 10px 0;
+  padding: 10px;
+}
+
+.features-preview__gift > b {
+  color: #8b5d10;
+  font-size: 9px;
+}
+
+.features-preview__tools {
+  border-top: 1px solid #ececef;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 17px;
+}
+
+.features-preview__coupon {
+  align-items: center;
+  border: 1px solid #cfd1d5;
+  border-radius: 6px;
+  color: #92949a;
+  display: flex;
+  font-size: 11px;
+  justify-content: space-between;
+  min-height: 38px;
+  padding-left: 11px;
+}
+
+.features-preview__coupon button {
+  align-self: stretch;
+  background: #202124;
+  border: 0;
+  color: #ffffff;
+  font-size: 10px;
+  padding: 0 12px;
+}
+
+.features-preview__offer,
+.features-preview__note,
+.features-preview__addon {
+  align-items: center;
+  background: #f7f7f8;
+  border: 1px solid #e0e1e4;
+  color: #474950;
+  display: flex;
+  font-size: 10px;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.features-preview__addon input {
+  accent-color: #238457;
+  flex: 0 0 15px;
+  height: 15px;
+  width: 15px;
+}
+
+.features-preview__footer {
+  align-items: center;
+  background: #ffffff;
+  border-top: 1px solid #dedfe2;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 14px 17px;
+}
+
+.features-preview__footer span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.features-preview__footer strong {
+  font-size: 14px;
+}
+
+.features-preview__footer button {
+  background: #202124;
+  border: 0;
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  grid-column: 1 / -1;
+  min-height: 42px;
 }
 
 .appearance-loading {
