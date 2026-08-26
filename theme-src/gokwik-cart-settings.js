@@ -173,7 +173,7 @@
       if (!customIcon && !(blockCartPageRedirection && automaticCartTarget)) return;
       event.preventDefault();
       api.open();
-    });
+    }, {capture: true});
 
     const updateStickyCart = (nextCart) => {
       const onProductPage = /\/products?\//.test(window.location.pathname);
