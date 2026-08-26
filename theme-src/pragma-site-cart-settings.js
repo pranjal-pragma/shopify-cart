@@ -36,6 +36,31 @@
     const productCache = new Map();
     const blockCartPageRedirection = configuration.block_cart_page_redirection !== false;
     const variantSelectionEnabled = configuration.variant_selection_enabled !== false;
+    const nativeCartSurfaceSelectors = [
+      'cart-notification',
+      '#cart-notification',
+      '.cart-notification',
+      '[data-cart-notification]',
+      'cart-drawer',
+      '#CartDrawer',
+      '.cart-drawer',
+      '.drawer--cart',
+      '.ajaxcart',
+      '.mini-cart',
+      '[data-cart-drawer]',
+    ];
+    const automaticCartTriggerSelector = [
+      'a[href]',
+      '#cart-icon-bubble',
+      '[data-cart-icon-bubble]',
+      '[data-cart-toggle]',
+      '[data-cart-trigger]',
+      '[data-open-cart]',
+      '[data-action="open-cart"]',
+      '[data-drawer-target*="cart" i]',
+      '[aria-controls*="cart" i]',
+      'button[name="cart"]',
+    ].join(', ');
     let cart = null;
     let submitTimer = null;
     let confirmationTimer = null;
@@ -85,18 +110,11 @@
       });
     };
 
-    const hideNativeAddToCartFeedback = () => {
-      if (configuration.use_theme_add_to_cart_handling || configuration.add_to_cart_behavior !== 'nothing') return;
-      [
-        'cart-notification',
-        '#cart-notification',
-        '.cart-notification',
-        '[data-cart-notification]',
-        'cart-drawer',
-        '#CartDrawer',
-        '.cart-drawer',
-        '[data-cart-drawer]',
-      ].forEach((selector) => {
+    const hideNativeCartSurfaces = () => {
+      const ownsAddToCartFeedback = !configuration.use_theme_add_to_cart_handling
+        && configuration.add_to_cart_behavior === 'nothing';
+      if (!blockCartPageRedirection && !ownsAddToCartFeedback) return;
+      nativeCartSurfaceSelectors.forEach((selector) => {
         document.querySelectorAll(selector).forEach((element) => {
           if (element !== root && !root.contains(element)) {
             element.style.setProperty('display', 'none', 'important');
@@ -107,7 +125,7 @@
     };
 
     hideNativeDrawers();
-    hideNativeAddToCartFeedback();
+    hideNativeCartSurfaces();
     (configuration.custom_cart_icon_selectors || []).forEach((selector) => {
       try {
         if (!document.querySelector(selector)) console.warn(`[pragma-site-cart] Cart icon selector did not match: ${selector}`);
@@ -115,13 +133,13 @@
         // Invalid selectors are reported by the guarded event matcher.
       }
     });
-    if (configuration.custom_cart_drawer_selectors?.length || (
+    if (blockCartPageRedirection || configuration.custom_cart_drawer_selectors?.length || (
       !configuration.use_theme_add_to_cart_handling
       && configuration.add_to_cart_behavior === 'nothing'
     )) {
       new MutationObserver(() => {
         hideNativeDrawers();
-        hideNativeAddToCartFeedback();
+        hideNativeCartSurfaces();
       }).observe(document.body, {childList: true, subtree: true});
     }
 
@@ -160,18 +178,20 @@
       };
     }
 
-    document.addEventListener('click', (event) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    window.addEventListener('click', (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       if (!(event.target instanceof Element) || root.contains(event.target)) return;
       const customIcon = (configuration.custom_cart_icon_selectors || []).some((selector) => matchesSelector(event.target, selector));
-      const target = event.target.closest('a[href], [data-cart-icon-bubble], #cart-icon-bubble');
+      const target = event.target.closest(automaticCartTriggerSelector);
       const href = target?.getAttribute('href');
       const automaticCartTarget = Boolean(target && (
         (href && isCartPath(href, cartUrl))
-        || (!href && target.matches('[data-cart-icon-bubble], #cart-icon-bubble'))
+        || (!href && target.matches(automaticCartTriggerSelector))
       ));
       if (!customIcon && !(blockCartPageRedirection && automaticCartTarget)) return;
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       api.open();
     }, {capture: true});
 

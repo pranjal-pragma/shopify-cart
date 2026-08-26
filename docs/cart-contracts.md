@@ -37,6 +37,14 @@ Lifecycle events:
 
 Custom scripts receive `pragmaSiteCart` and `configuration` arguments.
 
+When `block_cart_page_redirection` is enabled, the settings bundle owns recognized storefront cart
+triggers. It intercepts clicks during window capture, prevents navigation, stops theme click
+handlers, opens `pragma-site-cart`, and hides common native cart drawers and notifications. Built-in
+detection covers `/cart` links, Dawn cart-icon markers, common `data-*` cart triggers,
+`button[name="cart"]`, and controls whose `aria-controls` value references a cart. Merchants can
+extend trigger and drawer detection with `custom_cart_icon_selectors` and
+`custom_cart_drawer_selectors`.
+
 ## DOM and CSS namespace
 
 - Root marker: `data-pragma-site-cart-root`
