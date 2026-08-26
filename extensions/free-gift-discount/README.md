@@ -1,16 +1,16 @@
-# Shopify Function development with Rust
+# Free gift discount Function
 
-## Dependencies
+This Shopify Function applies a 100% product discount to an eligible gift line.
+It validates the configured offer ID, gift variant, gift quantity, and cart
+conditions before returning a discount operation.
 
-- [Install Rust](https://www.rust-lang.org/tools/install)
-  - On Windows, Rust requires the [Microsoft C++ Build Tools](https://docs.microsoft.com/en-us/windows/dev-environment/rust/setup). Be sure to select the _Desktop development with C++_ workload when installing them.
-
-## Building the function
-
-You can build this individual function using `cargo build`.
+## Development
 
 ```shell
-cargo build --target=wasm32-unknown-unknown --release
+npm install
+npm run build
+npm test -- --run
 ```
 
-The Shopify CLI `build` command will also execute this, based on the configuration in `shopify.extension.toml`.
+The app backend creates one scheduled automatic app discount for each enabled
+free-gift offer and stores the Function configuration on that discount.
