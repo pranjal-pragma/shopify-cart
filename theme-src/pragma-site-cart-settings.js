@@ -1,7 +1,7 @@
 (() => {
   const initialize = (api) => {
-    if (!api?.root || window.__gokwikCartSettingsLoaded) return;
-    window.__gokwikCartSettingsLoaded = true;
+    if (!api?.root || window.__pragmaSiteCartSettingsLoaded) return;
+    window.__pragmaSiteCartSettingsLoaded = true;
 
     const {root, configuration} = api;
     const country = root.dataset.country || window.Shopify?.country || '';
@@ -16,23 +16,23 @@
     const cartAddUrl = root.dataset.cartAddUrl || `${routesRoot}cart/add`;
     const cartChangeUrl = root.dataset.cartChangeUrl || `${routesRoot}cart/change`;
     const currency = root.dataset.currency || window.Shopify?.currency?.active || 'USD';
-    const confirmation = root.querySelector('[data-gk-confirmation]');
-    const stickyCart = root.querySelector('[data-gk-sticky-cart]');
-    const stickyCount = root.querySelector('[data-gk-sticky-count]');
-    const stickyTotal = root.querySelector('[data-gk-sticky-total]');
-    const terms = root.querySelector('[data-gk-terms]');
-    const termsCheckbox = root.querySelector('[data-gk-terms-checkbox]');
-    const termsText = root.querySelector('[data-gk-terms-text]');
-    const termsLink = root.querySelector('[data-gk-terms-link]');
-    const checkout = root.querySelector('.gk-cart-checkout-button');
-    const notice = root.querySelector('[data-gk-notice]');
-    const modal = root.querySelector('[data-gk-product-modal]');
-    const modalImage = root.querySelector('[data-gk-modal-image]');
-    const modalTitle = root.querySelector('[data-gk-modal-title]');
-    const modalVariant = root.querySelector('[data-gk-modal-variant]');
-    const modalPrice = root.querySelector('[data-gk-modal-price]');
-    const modalDescription = root.querySelector('[data-gk-modal-description]');
-    const modalLink = root.querySelector('[data-gk-modal-link]');
+    const confirmation = root.querySelector('[data-psc-confirmation]');
+    const stickyCart = root.querySelector('[data-psc-sticky-cart]');
+    const stickyCount = root.querySelector('[data-psc-sticky-count]');
+    const stickyTotal = root.querySelector('[data-psc-sticky-total]');
+    const terms = root.querySelector('[data-psc-terms]');
+    const termsCheckbox = root.querySelector('[data-psc-terms-checkbox]');
+    const termsText = root.querySelector('[data-psc-terms-text]');
+    const termsLink = root.querySelector('[data-psc-terms-link]');
+    const checkout = root.querySelector('.psc-cart-checkout-button');
+    const notice = root.querySelector('[data-psc-notice]');
+    const modal = root.querySelector('[data-psc-product-modal]');
+    const modalImage = root.querySelector('[data-psc-modal-image]');
+    const modalTitle = root.querySelector('[data-psc-modal-title]');
+    const modalVariant = root.querySelector('[data-psc-modal-variant]');
+    const modalPrice = root.querySelector('[data-psc-modal-price]');
+    const modalDescription = root.querySelector('[data-psc-modal-description]');
+    const modalLink = root.querySelector('[data-psc-modal-link]');
     const productCache = new Map();
     const blockCartPageRedirection = configuration.block_cart_page_redirection !== false;
     const variantSelectionEnabled = configuration.variant_selection_enabled !== false;
@@ -76,7 +76,7 @@
           document.querySelectorAll(selector).forEach((element) => {
             if (element !== root && !root.contains(element)) {
               element.style.setProperty('display', 'none', 'important');
-              element.dataset.gokwikCartHidden = 'true';
+              element.dataset.pragmaSiteCartHidden = 'true';
             }
           });
         } catch (error) {
@@ -100,7 +100,7 @@
         document.querySelectorAll(selector).forEach((element) => {
           if (element !== root && !root.contains(element)) {
             element.style.setProperty('display', 'none', 'important');
-            element.dataset.gokwikCartHidden = 'true';
+            element.dataset.pragmaSiteCartHidden = 'true';
           }
         });
       });
@@ -135,7 +135,7 @@
 
     const handleAddToCart = (source) => {
       if (source === 'fetch') window.clearTimeout(submitTimer);
-      window.dispatchEvent(new CustomEvent('KwikCartAtcButtonClicked', {detail: {source}}));
+      window.dispatchEvent(new CustomEvent('PragmaSiteCartAtcButtonClicked', {detail: {source}}));
       if (configuration.add_to_cart_behavior === 'open_cart') api.open();
       else {
         api.sync();
@@ -199,37 +199,37 @@
       const upsellOnly = Boolean(
         configuration.disable_checkout_for_upsell_only
         && cart?.items?.length
-        && cart.items.every((item) => isTruthy(item.properties?._gokwik_upsell)),
+        && cart.items.every((item) => isTruthy(item.properties?._pragma_site_cart_upsell)),
       );
       const oneTickOnly = Boolean(
         configuration.one_tick_disable_checkout_only
         && cart?.items?.length
-        && cart.items.every((item) => isTruthy(item.properties?._gokwik_one_tick)),
+        && cart.items.every((item) => isTruthy(item.properties?._pragma_site_cart_one_tick)),
       );
       const reason = !termsAccepted
         ? 'Accept the Terms & Conditions to continue.'
         : upsellOnly || oneTickOnly ? 'Add a regular product before checkout.' : '';
-      checkout.classList.toggle('gk-cart-checkout-button--disabled', Boolean(reason));
+      checkout.classList.toggle('psc-cart-checkout-button--disabled', Boolean(reason));
       checkout.setAttribute('aria-disabled', String(Boolean(reason)));
-      checkout.dataset.gkBlockedReason = reason;
+      checkout.dataset.pscBlockedReason = reason;
     };
 
     checkout.addEventListener('click', (event) => {
-      const reason = checkout.dataset.gkBlockedReason;
+      const reason = checkout.dataset.pscBlockedReason;
       if (!reason) return;
       event.preventDefault();
       notice.textContent = reason;
       notice.hidden = false;
-      notice.classList.add('gk-cart-notice--error');
+      notice.classList.add('psc-cart-notice--error');
     });
 
     const selectedVariantId = Number(String(configuration.quantity_limit_variant_id || '').split('/').pop());
     const applyQuantityRules = (nextCart) => {
-      root.querySelectorAll('[data-gk-line]').forEach((row) => {
-        const item = nextCart.items[Number(row.dataset.gkLine) - 1];
+      root.querySelectorAll('[data-psc-line]').forEach((row) => {
+        const item = nextCart.items[Number(row.dataset.pscLine) - 1];
         if (!item) return;
         if (configuration.product_quantity_limit_enabled && Number(item.variant_id) === selectedVariantId && item.quantity >= configuration.product_quantity_limit) {
-          const increase = row.querySelector('[data-gk-action="increase"]');
+          const increase = row.querySelector('[data-psc-action="increase"]');
           if (increase) {
             increase.disabled = true;
             increase.title = `Maximum quantity is ${configuration.product_quantity_limit}`;
@@ -270,7 +270,7 @@
         console.error('[pragma-site-cart] Unable to change variant', error);
         notice.textContent = 'That variant could not be selected. Please try again.';
         notice.hidden = false;
-        notice.classList.add('gk-cart-notice--error');
+        notice.classList.add('psc-cart-notice--error');
         select.value = String(item.variant_id);
       } finally {
         select.disabled = false;
@@ -279,14 +279,14 @@
 
     const renderVariantSelectors = async (nextCart) => {
       if (!variantSelectionEnabled) return;
-      await Promise.all([...root.querySelectorAll('[data-gk-line]')].map(async (row) => {
-        const line = Number(row.dataset.gkLine);
+      await Promise.all([...root.querySelectorAll('[data-psc-line]')].map(async (row) => {
+        const line = Number(row.dataset.pscLine);
         const item = nextCart.items[line - 1];
         if (!item?.handle) return;
         const product = await loadProduct(item.handle);
         if (api.getCart() !== nextCart || !product?.variants || product.variants.length < 2) return;
         const select = document.createElement('select');
-        select.className = 'gk-cart-variant-select';
+        select.className = 'psc-cart-variant-select';
         select.setAttribute('aria-label', `Variant for ${item.product_title}`);
         product.variants.forEach((variant) => {
           if (!variant.available && Number(variant.id) !== Number(item.variant_id)) return;
@@ -297,7 +297,7 @@
           select.append(option);
         });
         select.addEventListener('change', () => changeVariant(item, line, select.value, select));
-        row.querySelector('.gk-cart-variant')?.replaceWith(select);
+        row.querySelector('.psc-cart-variant')?.replaceWith(select);
       }));
     };
 
@@ -322,22 +322,22 @@
       modalDescription.textContent = description.textContent?.trim().slice(0, 260) || '';
       modal.hidden = false;
       modal.setAttribute('aria-hidden', 'false');
-      modal.querySelector('[data-gk-modal-close]')?.focus();
+      modal.querySelector('[data-psc-modal-close]')?.focus();
     };
 
     root.addEventListener('click', (event) => {
       if (!(event.target instanceof Element)) return;
-      if (event.target.closest('[data-gk-modal-close]')) {
+      if (event.target.closest('[data-psc-modal-close]')) {
         closeModal();
         return;
       }
-      const productLink = event.target.closest('.gk-cart-image-link, .gk-cart-item-title');
+      const productLink = event.target.closest('.psc-cart-image-link, .psc-cart-item-title');
       if (!productLink) return;
       if (configuration.product_click_behavior === 'redirect') return;
       event.preventDefault();
       if (configuration.product_click_behavior !== 'modal' || !cart) return;
-      const row = productLink.closest('[data-gk-line]');
-      const item = cart.items[Number(row?.dataset.gkLine) - 1];
+      const row = productLink.closest('[data-psc-line]');
+      const item = cart.items[Number(row?.dataset.pscLine) - 1];
       if (item) openProductModal(item);
     });
 
@@ -345,7 +345,7 @@
       if (event.key === 'Escape' && !modal.hidden) closeModal();
     });
 
-    document.addEventListener('gokwik:cart:rendered', (event) => {
+    document.addEventListener('pragma-site-cart:cart:rendered', (event) => {
       if (event.detail?.root !== root) return;
       cart = event.detail.cart;
       updateStickyCart(cart);
@@ -355,6 +355,6 @@
     });
   };
 
-  if (window.gokwikCart) initialize(window.gokwikCart);
-  else document.addEventListener('gokwik:cart:ready', (event) => initialize(event.detail.api), {once: true});
+  if (window.pragmaSiteCart) initialize(window.pragmaSiteCart);
+  else document.addEventListener('pragma-site-cart:cart:ready', (event) => initialize(event.detail.api), {once: true});
 })();

@@ -1,37 +1,37 @@
 (() => {
   const initialize = (api) => {
-    if (!api?.root || window.__gokwikCartGiftsLoaded) return;
-    window.__gokwikCartGiftsLoaded = true;
+    if (!api?.root || window.__pragmaSiteCartGiftsLoaded) return;
+    window.__pragmaSiteCartGiftsLoaded = true;
     const {root, configuration} = api;
     if (!configuration.free_gifts_enabled) return;
 
-    const drawer = root.querySelector('[data-gk-drawer]');
-    const notice = root.querySelector('[data-gk-notice]');
+    const drawer = root.querySelector('[data-psc-drawer]');
+    const notice = root.querySelector('[data-psc-notice]');
     const routesRoot = window.Shopify?.routes?.root || '/';
     const cartAddUrl = root.dataset.cartAddUrl || `${routesRoot}cart/add`;
     const cartChangeUrl = root.dataset.cartChangeUrl || `${routesRoot}cart/change`;
     const nativeFetch = window.fetch.bind(window);
     const host = document.createElement('div');
-    host.className = 'gk-cart-feature gk-cart-feature--gifts';
+    host.className = 'psc-cart-feature psc-cart-feature--gifts';
     host.hidden = true;
-    drawer.insertBefore(host, drawer.querySelector('.gk-cart-features') || root.querySelector('[data-gk-footer]'));
+    drawer.insertBefore(host, drawer.querySelector('.psc-cart-features') || root.querySelector('[data-psc-footer]'));
     const handledOffers = new Set();
     let mutationRunning = false;
 
     const numericId = (gid) => Number(String(gid || '').split('/').pop());
-    const giftOfferId = (item) => String(item.properties?._gokwik_free_gift_offer || '');
+    const giftOfferId = (item) => String(item.properties?._pragma_site_cart_free_gift_offer || '');
     const isGift = (item) => Boolean(giftOfferId(item));
     const showNotice = (message, error = false) => {
       notice.textContent = message;
       notice.hidden = !message;
-      notice.classList.toggle('gk-cart-notice--error', error);
+      notice.classList.toggle('psc-cart-notice--error', error);
     };
     const addGift = async (offer) => {
       const response = await nativeFetch(`${cartAddUrl}.js`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
         credentials: 'same-origin',
-        body: JSON.stringify({items: [{id: numericId(offer.variant_id), quantity: Number(offer.quantity || 1), properties: {_gokwik_free_gift: 'true', _gokwik_free_gift_offer: offer.id}}]}),
+        body: JSON.stringify({items: [{id: numericId(offer.variant_id), quantity: Number(offer.quantity || 1), properties: {_pragma_site_cart_free_gift: 'true', _pragma_site_cart_free_gift_offer: offer.id}}]}),
       });
       if (!response.ok) throw new Error(`Gift add failed (${response.status})`);
       handledOffers.add(offer.id);
@@ -120,12 +120,12 @@
       }
     };
 
-    document.addEventListener('gokwik:cart:rendered', (event) => {
+    document.addEventListener('pragma-site-cart:cart:rendered', (event) => {
       if (event.detail?.root === root) reconcile(event.detail.cart);
     });
     if (api.getCart()) reconcile(api.getCart());
   };
 
-  if (window.gokwikCart) initialize(window.gokwikCart);
-  else document.addEventListener('gokwik:cart:ready', (event) => initialize(event.detail.api), {once: true});
+  if (window.pragmaSiteCart) initialize(window.pragmaSiteCart);
+  else document.addEventListener('pragma-site-cart:cart:ready', (event) => initialize(event.detail.api), {once: true});
 })();

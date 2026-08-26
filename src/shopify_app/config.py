@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     debug: bool = False
     allowed_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
     database_url: str = "postgresql+asyncpg://shopify:shopify@localhost:5433/shopify_app"
-    shopify_app_name: str = "Pragma Cart"
+    shopify_app_name: str = "pragma-site-cart"
     shopify_app_url: str = "https://app.example.com"
     shopify_client_id: str = "replace-me"
     shopify_client_secret: SecretStr = SecretStr("replace-me")

@@ -32,7 +32,7 @@ export interface BannerCondition {
 }
 
 export interface CartAppearanceConfiguration {
-  font_source: 'gokwik' | 'theme';
+  font_source: 'pragma-site-cart' | 'theme';
   theme_color: string;
   announcement_enabled: boolean;
   announcement_background: string;
@@ -57,7 +57,7 @@ export interface CartAppearanceConfiguration {
   checkout_subtext_enabled: boolean;
   checkout_subtext: RichTextStyle;
   checkout_alignment: 'left' | 'center' | 'right';
-  gokwik_checkout: boolean;
+  pragma_site_cart_checkout: boolean;
   show_payment_icons: boolean;
   show_estimated_total_breakup: boolean;
   footer_enabled: boolean;

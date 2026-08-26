@@ -1,0 +1,175 @@
+{% assign appearance = app.metafields.cart.appearance.value %}
+{% assign accent_color = appearance.theme_color | default: block.settings.accent_color %}
+{% assign empty_title = appearance.empty_title | default: block.settings.empty_title %}
+{% assign continue_label = appearance.empty_cta_text | default: block.settings.continue_label %}
+{% assign continue_link = appearance.empty_cta_url | default: block.settings.continue_link %}
+{% assign checkout_label = appearance.checkout_text.text | default: block.settings.checkout_label %}
+
+<script src="{{ 'pragma-site-cart-extras.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'pragma-site-cart-settings.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'pragma-site-cart-scarcity.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'pragma-site-cart-features.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'pragma-site-cart-gifts.js' | asset_url }}" defer="defer"></script>
+
+<div
+  class="psc-cart-root"
+  data-pragma-site-cart-root
+  data-cart-url="{{ routes.cart_url }}"
+  data-cart-add-url="{{ routes.cart_add_url }}"
+  data-cart-change-url="{{ routes.cart_change_url }}"
+  data-currency="{{ cart.currency.iso_code | default: shop.currency }}"
+  data-country="{{ localization.country.iso_code }}"
+  data-appearance="{{ appearance | json | escape }}"
+  style="--psc-cart-accent: {{ accent_color }}; --psc-cart-announcement-background: {{ appearance.announcement_background | default: '#FFF2F2' }}; --psc-cart-announcement-color: {{ appearance.announcement_text_color | default: '#7A1515' }}; --psc-cart-checkout-background: {{ appearance.checkout_background | default: '#202124' }}; --psc-cart-checkout-color: {{ appearance.checkout_text_color | default: '#FFFFFF' }}; --psc-cart-footer-color: {{ appearance.footer_text_color | default: '#676A72' }};"
+>
+  <button class="psc-cart-overlay" type="button" aria-label="Close cart" data-psc-close tabindex="-1"></button>
+
+  <aside
+    class="psc-cart-drawer"
+    role="dialog"
+    aria-modal="true"
+    aria-hidden="true"
+    aria-labelledby="psc-cart-title"
+    data-psc-drawer
+  >
+    <div class="psc-cart-announcement" data-psc-announcement hidden>
+      <div class="psc-cart-announcement-viewport" data-psc-announcement-viewport aria-live="polite"></div>
+      <div class="psc-cart-announcement-dots" data-psc-announcement-dots aria-hidden="true"></div>
+    </div>
+
+    <header class="psc-cart-header">
+      <div>
+        <p class="psc-cart-eyebrow">Your order</p>
+        <h2 id="psc-cart-title">{{ block.settings.drawer_title | escape }}</h2>
+      </div>
+      <button class="psc-cart-icon-button" type="button" aria-label="Close cart" data-psc-close>
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </header>
+
+    <div class="psc-cart-scarcity" data-psc-scarcity role="timer" hidden>
+      <span data-psc-scarcity-title></span>
+      <strong data-psc-scarcity-time></strong>
+    </div>
+
+    <div class="psc-cart-notice" role="status" aria-live="polite" data-psc-notice></div>
+
+    <div class="psc-cart-content" data-psc-content>
+      <div class="psc-cart-loading" data-psc-loading>
+        <span class="psc-cart-spinner" aria-hidden="true"></span>
+        <span>Loading your cart</span>
+      </div>
+
+      <div class="psc-cart-empty" data-psc-empty hidden>
+        <span class="psc-cart-empty-icon" aria-hidden="true"></span>
+        <h3>{{ empty_title | escape }}</h3>
+        <a class="psc-cart-secondary-button" href="{{ continue_link }}" data-psc-continue>
+          {{ continue_label | escape }}
+        </a>
+      </div>
+
+      <ul class="psc-cart-items" data-psc-items aria-label="Cart items"></ul>
+      <button class="psc-cart-view-all" type="button" data-psc-view-all hidden aria-expanded="false"></button>
+    </div>
+
+    <footer class="psc-cart-footer" data-psc-footer hidden>
+      <p class="psc-cart-savings" data-psc-savings hidden></p>
+      <div class="psc-cart-total-row" data-psc-total-row>
+        <span>Estimated total</span>
+        <strong data-psc-total></strong>
+      </div>
+      <details class="psc-cart-breakdown" data-psc-breakdown hidden>
+        <summary>
+          <span>Estimated total</span>
+          <strong data-psc-breakdown-total></strong>
+        </summary>
+        <dl>
+          <div><dt>Items subtotal</dt><dd data-psc-subtotal></dd></div>
+          <div data-psc-discount-row hidden><dt>Discounts</dt><dd data-psc-discount></dd></div>
+          <div class="psc-cart-breakdown-total"><dt>Total</dt><dd data-psc-breakdown-final></dd></div>
+        </dl>
+      </details>
+      <p class="psc-cart-tax-note">Taxes and shipping calculated at checkout.</p>
+      <div class="psc-cart-terms" data-psc-terms hidden>
+        <label><input type="checkbox" data-psc-terms-checkbox><span data-psc-terms-text></span></label>
+        <a href="/policies/terms-of-service" target="_blank" rel="noopener" data-psc-terms-link>View terms</a>
+      </div>
+      <a class="psc-cart-checkout-button" href="/checkout">
+        <span data-psc-checkout-label>{{ checkout_label | escape }}</span>
+        <span aria-hidden="true">&rarr;</span>
+      </a>
+      <p class="psc-cart-footer-message" data-psc-footer-message hidden></p>
+    </footer>
+  </aside>
+
+  <button class="psc-cart-sticky" type="button" data-psc-sticky-cart hidden>
+    <span><span class="psc-cart-sticky-icon" aria-hidden="true"></span><span data-psc-sticky-count>0 items</span></span>
+    <strong data-psc-sticky-total></strong>
+  </button>
+
+  <div class="psc-cart-confirmation" data-psc-confirmation role="status" aria-live="polite" hidden>
+    Item added to your cart
+  </div>
+
+  <div class="psc-cart-product-modal" data-psc-product-modal role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="psc-cart-product-modal-title" hidden>
+    <button class="psc-cart-product-modal__backdrop" type="button" data-psc-modal-close aria-label="Close product details"></button>
+    <div class="psc-cart-product-modal__dialog">
+      <button class="psc-cart-icon-button psc-cart-product-modal__close" type="button" data-psc-modal-close aria-label="Close product details"><span aria-hidden="true">&times;</span></button>
+      <img data-psc-modal-image width="320" height="320" alt="" hidden>
+      <div class="psc-cart-product-modal__content">
+        <h3 id="psc-cart-product-modal-title" data-psc-modal-title></h3>
+        <p data-psc-modal-variant></p>
+        <strong data-psc-modal-price></strong>
+        <p data-psc-modal-description></p>
+        <a data-psc-modal-link href="#">View product</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Cart drawer",
+  "target": "body",
+  "javascript": "pragma-site-cart.js",
+  "stylesheet": "pragma-site-cart.css",
+  "settings": [
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#202124"
+    },
+    {
+      "type": "text",
+      "id": "drawer_title",
+      "label": "Cart title",
+      "default": "Your cart"
+    },
+    {
+      "type": "text",
+      "id": "empty_title",
+      "label": "Empty cart title",
+      "default": "Your cart is empty"
+    },
+    {
+      "type": "text",
+      "id": "continue_label",
+      "label": "Continue shopping label",
+      "default": "Continue shopping"
+    },
+    {
+      "type": "url",
+      "id": "continue_link",
+      "label": "Continue shopping link",
+      "default": "/collections/all"
+    },
+    {
+      "type": "text",
+      "id": "checkout_label",
+      "label": "Checkout button label",
+      "default": "Checkout securely"
+    }
+  ]
+}
+{% endschema %}

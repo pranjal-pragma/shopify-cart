@@ -3,7 +3,7 @@ query Input {
     lines {
       id
       quantity
-      giftOffer: attribute(key: "_gokwik_free_gift_offer") {
+      giftOffer: attribute(key: "_pragma_site_cart_free_gift_offer") {
         value
       }
       cost {

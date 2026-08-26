@@ -1,20 +1,20 @@
 (() => {
   const initialize = (api) => {
-    if (!api?.root || window.__gokwikCartExtrasLoaded) return;
-    window.__gokwikCartExtrasLoaded = true;
+    if (!api?.root || window.__pragmaSiteCartExtrasLoaded) return;
+    window.__pragmaSiteCartExtrasLoaded = true;
 
     const {root, configuration} = api;
-    const announcement = root.querySelector('[data-gk-announcement]');
-    const viewport = root.querySelector('[data-gk-announcement-viewport]');
-    const dots = root.querySelector('[data-gk-announcement-dots]');
-    const savings = root.querySelector('[data-gk-savings]');
-    const totalRow = root.querySelector('[data-gk-total-row]');
-    const breakdown = root.querySelector('[data-gk-breakdown]');
-    const breakdownTotal = root.querySelector('[data-gk-breakdown-total]');
-    const breakdownFinal = root.querySelector('[data-gk-breakdown-final]');
-    const subtotal = root.querySelector('[data-gk-subtotal]');
-    const discountRow = root.querySelector('[data-gk-discount-row]');
-    const discount = root.querySelector('[data-gk-discount]');
+    const announcement = root.querySelector('[data-psc-announcement]');
+    const viewport = root.querySelector('[data-psc-announcement-viewport]');
+    const dots = root.querySelector('[data-psc-announcement-dots]');
+    const savings = root.querySelector('[data-psc-savings]');
+    const totalRow = root.querySelector('[data-psc-total-row]');
+    const breakdown = root.querySelector('[data-psc-breakdown]');
+    const breakdownTotal = root.querySelector('[data-psc-breakdown-total]');
+    const breakdownFinal = root.querySelector('[data-psc-breakdown-final]');
+    const subtotal = root.querySelector('[data-psc-subtotal]');
+    const discountRow = root.querySelector('[data-psc-discount-row]');
+    const discount = root.querySelector('[data-psc-discount]');
     const currency = root.dataset.currency || window.Shopify?.currency?.active || 'USD';
     const routesRoot = window.Shopify?.routes?.root || '/';
     const compareAtPrices = new Map();
@@ -57,7 +57,7 @@
 
     const createBanner = (banner, className = '') => {
       const message = document.createElement('div');
-      message.className = `gk-cart-announcement-message ${className}`.trim();
+      message.className = `psc-cart-announcement-message ${className}`.trim();
       const title = document.createElement('span');
       applyRichText(title, banner.title);
       message.append(title);
@@ -70,10 +70,10 @@
     };
 
     const showBanner = (banners, index, animate = false) => {
-      const next = createBanner(banners[index], animate ? 'gk-cart-announcement-message--entering' : '');
+      const next = createBanner(banners[index], animate ? 'psc-cart-announcement-message--entering' : '');
       const current = viewport.firstElementChild;
       if (animate && current) {
-        current.classList.add('gk-cart-announcement-message--leaving');
+        current.classList.add('psc-cart-announcement-message--leaving');
         viewport.append(next);
         window.setTimeout(() => viewport.replaceChildren(next), 420);
       } else {
@@ -132,15 +132,15 @@
       }));
       if (api.getCart() !== cart) return;
 
-      root.querySelectorAll('[data-gk-line]').forEach((row) => {
-        const item = cart.items[Number(row.dataset.gkLine) - 1];
-        const prices = row.querySelector('.gk-cart-line-prices');
+      root.querySelectorAll('[data-psc-line]').forEach((row) => {
+        const item = cart.items[Number(row.dataset.pscLine) - 1];
+        const prices = row.querySelector('.psc-cart-line-prices');
         if (!item || !prices) return;
-        prices.querySelector('.gk-cart-compare-price')?.remove();
+        prices.querySelector('.psc-cart-compare-price')?.remove();
         const compareAtPrice = compareAtPrices.get(Number(item.variant_id));
         if (!(compareAtPrice > item.final_price)) return;
         const mrp = document.createElement('s');
-        mrp.className = 'gk-cart-compare-price';
+        mrp.className = 'psc-cart-compare-price';
         mrp.textContent = formatMoney(compareAtPrice * item.quantity);
         prices.prepend(mrp);
       });
@@ -165,29 +165,29 @@
       updateCompareAtPrices(cart);
     };
 
-    document.addEventListener('gokwik:cart:rendered', (event) => {
+    document.addEventListener('pragma-site-cart:cart:rendered', (event) => {
       if (event.detail?.root === root) update(event.detail.cart);
     });
-    document.addEventListener('gokwik:cart:closed', () => window.clearInterval(bannerTimer));
+    document.addEventListener('pragma-site-cart:cart:closed', () => window.clearInterval(bannerTimer));
     update(api.getCart());
 
     const customScript = String(configuration.custom_script || '').trim();
     if (customScript) {
       try {
         const execute = new Function(
-          'gokwikCart',
+          'pragmaSiteCart',
           'configuration',
-          `"use strict";\n${customScript}\n//# sourceURL=gokwik-cart-custom.js`,
+          `"use strict";\n${customScript}\n//# sourceURL=pragma-site-cart-custom.js`,
         );
         execute(api, configuration);
-        document.dispatchEvent(new CustomEvent('gokwik:custom-script:ready'));
+        document.dispatchEvent(new CustomEvent('pragma-site-cart:custom-script:ready'));
       } catch (error) {
         console.error('[pragma-site-cart] Custom script failed', error);
-        document.dispatchEvent(new CustomEvent('gokwik:custom-script:error', {detail: {error}}));
+        document.dispatchEvent(new CustomEvent('pragma-site-cart:custom-script:error', {detail: {error}}));
       }
     }
   };
 
-  if (window.gokwikCart) initialize(window.gokwikCart);
-  else document.addEventListener('gokwik:cart:ready', (event) => initialize(event.detail.api), {once: true});
+  if (window.pragmaSiteCart) initialize(window.pragmaSiteCart);
+  else document.addEventListener('pragma-site-cart:cart:ready', (event) => initialize(event.detail.api), {once: true});
 })();

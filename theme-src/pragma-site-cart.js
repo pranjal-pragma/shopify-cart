@@ -1,22 +1,22 @@
 (() => {
   const initialize = () => {
-    const root = document.querySelector('[data-gokwik-cart-root]');
-    if (!root || window.__gokwikCartLoaded) return;
-    window.__gokwikCartLoaded = true;
+    const root = document.querySelector('[data-pragma-site-cart-root]');
+    if (!root || window.__pragmaSiteCartLoaded) return;
+    window.__pragmaSiteCartLoaded = true;
 
-    const drawer = root.querySelector('[data-gk-drawer]');
-    const content = root.querySelector('[data-gk-content]');
-    const loading = root.querySelector('[data-gk-loading]');
-    const empty = root.querySelector('[data-gk-empty]');
-    const items = root.querySelector('[data-gk-items]');
-    const viewAllButton = root.querySelector('[data-gk-view-all]');
-    const footer = root.querySelector('[data-gk-footer]');
-    const total = root.querySelector('[data-gk-total]');
-    const notice = root.querySelector('[data-gk-notice]');
-    const checkoutLabel = root.querySelector('[data-gk-checkout-label]');
-    const footerMessage = root.querySelector('[data-gk-footer-message]');
-    const closeButton = root.querySelector('.gk-cart-icon-button');
-    const continueButton = root.querySelector('[data-gk-continue]');
+    const drawer = root.querySelector('[data-psc-drawer]');
+    const content = root.querySelector('[data-psc-content]');
+    const loading = root.querySelector('[data-psc-loading]');
+    const empty = root.querySelector('[data-psc-empty]');
+    const items = root.querySelector('[data-psc-items]');
+    const viewAllButton = root.querySelector('[data-psc-view-all]');
+    const footer = root.querySelector('[data-psc-footer]');
+    const total = root.querySelector('[data-psc-total]');
+    const notice = root.querySelector('[data-psc-notice]');
+    const checkoutLabel = root.querySelector('[data-psc-checkout-label]');
+    const footerMessage = root.querySelector('[data-psc-footer-message]');
+    const closeButton = root.querySelector('.psc-cart-icon-button');
+    const continueButton = root.querySelector('[data-psc-continue]');
     const nativeFetch = window.fetch.bind(window);
     const routesRoot = window.Shopify?.routes?.root || '/';
     const cartUrl = root.dataset.cartUrl || `${routesRoot}cart`;
@@ -41,7 +41,7 @@
     let productsExpanded = false;
     const compactProductLimit = 3;
 
-    if (appearance.font_source === 'gokwik') root.classList.add('gk-cart-root--app-font');
+    if (appearance.font_source === 'pragma-site-cart') root.classList.add('psc-cart-root--app-font');
 
     const applyRichText = (element, value) => {
       if (!element || !value) return;
@@ -54,7 +54,7 @@
 
     applyRichText(checkoutLabel, appearance.checkout_text);
     if (appearance.checkout_alignment) {
-      root.querySelector('.gk-cart-checkout-button').style.textAlign = appearance.checkout_alignment;
+      root.querySelector('.psc-cart-checkout-button').style.textAlign = appearance.checkout_alignment;
     }
     if (appearance.footer_enabled && appearance.footer_text?.text) {
       footerMessage.hidden = false;
@@ -75,7 +75,7 @@
 
     const setNotice = (message = '', isError = false) => {
       notice.textContent = message;
-      notice.classList.toggle('gk-cart-notice--error', isError);
+      notice.classList.toggle('psc-cart-notice--error', isError);
       notice.hidden = !message;
     };
 
@@ -93,8 +93,8 @@
     const createButton = (label, action, line, text) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'gk-cart-quantity-button';
-      button.dataset.gkAction = action;
+      button.className = 'psc-cart-quantity-button';
+      button.dataset.pscAction = action;
       button.dataset.line = String(line);
       button.setAttribute('aria-label', label);
       button.textContent = text;
@@ -109,7 +109,7 @@
       if (!visibleProperties.length) return null;
 
       const list = document.createElement('dl');
-      list.className = 'gk-cart-properties';
+      list.className = 'psc-cart-properties';
       visibleProperties.forEach(([key, value]) => {
         const term = document.createElement('dt');
         const description = document.createElement('dd');
@@ -121,30 +121,30 @@
     };
 
     const isFreeGift = (item) => {
-      const marker = item.properties?._gokwik_free_gift;
+      const marker = item.properties?._pragma_site_cart_free_gift;
       const marked = marker === true || ['true', '1', 'yes'].includes(String(marker).toLowerCase());
       const fullyDiscounted = Number(item.final_line_price) === 0;
       return marked || fullyDiscounted;
     };
 
     const isOneTickItem = (item) => {
-      const marker = item.properties?._gokwik_one_tick;
+      const marker = item.properties?._pragma_site_cart_one_tick;
       return marker === true || ['true', '1', 'yes'].includes(String(marker).toLowerCase());
     };
 
     const createCartItem = (item, line, freeGift) => {
       const row = document.createElement('li');
-      row.className = 'gk-cart-item';
-      row.dataset.gkLine = String(line);
-      row.classList.toggle('gk-cart-item--gift', freeGift);
+      row.className = 'psc-cart-item';
+      row.dataset.pscLine = String(line);
+      row.classList.toggle('psc-cart-item--gift', freeGift);
 
     const imageLink = document.createElement('a');
-    imageLink.className = 'gk-cart-image-link';
+    imageLink.className = 'psc-cart-image-link';
     imageLink.href = item.url;
     const imageUrl = item.featured_image?.url || item.image;
     if (imageUrl) {
       const image = document.createElement('img');
-      image.className = 'gk-cart-image';
+      image.className = 'psc-cart-image';
       image.src = imageUrl;
       image.alt = item.featured_image?.alt || item.product_title;
       image.width = 88;
@@ -153,20 +153,20 @@
       imageLink.append(image);
     } else {
       const placeholder = document.createElement('span');
-      placeholder.className = 'gk-cart-image-placeholder';
+      placeholder.className = 'psc-cart-image-placeholder';
       placeholder.setAttribute('aria-hidden', 'true');
       imageLink.append(placeholder);
     }
 
       const details = document.createElement('div');
-      details.className = 'gk-cart-item-details';
+      details.className = 'psc-cart-item-details';
       const titleLink = document.createElement('a');
-      titleLink.className = 'gk-cart-item-title';
+      titleLink.className = 'psc-cart-item-title';
       titleLink.href = item.url;
       titleLink.textContent = item.product_title;
       if (freeGift) {
         const giftLabel = document.createElement('span');
-        giftLabel.className = 'gk-cart-gift-label';
+        giftLabel.className = 'psc-cart-gift-label';
         giftLabel.textContent = 'Free gift';
         details.append(giftLabel);
       }
@@ -174,7 +174,7 @@
 
       if (appearance.show_variant_names !== false && item.variant_title && item.variant_title !== 'Default Title') {
         const variant = document.createElement('p');
-        variant.className = 'gk-cart-variant';
+        variant.className = 'psc-cart-variant';
         variant.textContent = item.variant_title;
         details.append(variant);
       }
@@ -183,9 +183,9 @@
       if (propertyList) details.append(propertyList);
 
       const controls = document.createElement('div');
-      controls.className = 'gk-cart-item-controls';
+      controls.className = 'psc-cart-item-controls';
       const quantity = document.createElement('div');
-      quantity.className = 'gk-cart-quantity';
+      quantity.className = 'psc-cart-quantity';
       quantity.setAttribute('aria-label', `Quantity for ${item.product_title}`);
       const decrease = createButton(`Decrease ${item.product_title} quantity`, 'decrease', line, '\u2212');
       const increase = createButton(`Increase ${item.product_title} quantity`, 'increase', line, '+');
@@ -199,27 +199,27 @@
       }
       quantity.append(decrease);
       const quantityValue = document.createElement('span');
-      quantityValue.className = 'gk-cart-quantity-value';
+      quantityValue.className = 'psc-cart-quantity-value';
       quantityValue.textContent = String(item.quantity);
       quantityValue.setAttribute('aria-live', 'polite');
       quantity.append(quantityValue, increase);
 
       const remove = document.createElement('button');
       remove.type = 'button';
-      remove.className = 'gk-cart-remove';
-      remove.dataset.gkAction = 'remove';
+      remove.className = 'psc-cart-remove';
+      remove.dataset.pscAction = 'remove';
       remove.dataset.line = String(line);
       remove.setAttribute('aria-label', `Remove ${item.product_title} from cart`);
       remove.title = 'Remove item';
       const removeIcon = document.createElement('span');
-      removeIcon.className = 'gk-cart-remove-icon';
+      removeIcon.className = 'psc-cart-remove-icon';
       removeIcon.setAttribute('aria-hidden', 'true');
       remove.append(removeIcon);
 
       const priceWrap = document.createElement('span');
-      priceWrap.className = 'gk-cart-line-prices';
+      priceWrap.className = 'psc-cart-line-prices';
       const price = document.createElement('strong');
-      price.className = 'gk-cart-line-price';
+      price.className = 'psc-cart-line-price';
       price.textContent = formatMoney(item.final_line_price);
       priceWrap.append(price);
       controls.append(quantity, remove, priceWrap);
@@ -255,7 +255,7 @@
       footer.hidden = nextCart.item_count === 0;
       total.textContent = formatMoney(nextCart.total_price);
       updateThemeCounts(nextCart.item_count);
-      document.dispatchEvent(new CustomEvent('gokwik:cart:rendered', {
+      document.dispatchEvent(new CustomEvent('pragma-site-cart:cart:rendered', {
         detail: {cart: nextCart, root},
       }));
     };
@@ -284,25 +284,25 @@
 
     const openCart = () => {
       previousFocus = document.activeElement;
-      root.classList.add('gk-cart-root--open');
+      root.classList.add('psc-cart-root--open');
       drawer.setAttribute('aria-hidden', 'false');
-      document.body.classList.add('gk-cart-page-locked');
+      document.body.classList.add('psc-cart-page-locked');
       loadCart();
       requestAnimationFrame(() => closeButton.focus());
-      document.dispatchEvent(new CustomEvent('gokwik:cart:opened'));
+      document.dispatchEvent(new CustomEvent('pragma-site-cart:cart:opened'));
     };
 
     const closeCart = () => {
-      root.classList.remove('gk-cart-root--open');
+      root.classList.remove('psc-cart-root--open');
       drawer.setAttribute('aria-hidden', 'true');
-      document.body.classList.remove('gk-cart-page-locked');
+      document.body.classList.remove('psc-cart-page-locked');
       if (previousFocus instanceof HTMLElement) previousFocus.focus();
-      document.dispatchEvent(new CustomEvent('gokwik:cart:closed'));
+      document.dispatchEvent(new CustomEvent('pragma-site-cart:cart:closed'));
     };
 
     const changeLine = async (line, quantity) => {
       setNotice('Updating cart...');
-      root.classList.add('gk-cart-root--updating');
+      root.classList.add('psc-cart-root--updating');
       try {
         const response = await nativeFetch(`${cartChangeUrl}.js`, {
           method: 'POST',
@@ -317,31 +317,31 @@
         setNotice('That change could not be saved. Please try again.', true);
         console.error('[pragma-site-cart] Unable to change cart line', error);
       } finally {
-        root.classList.remove('gk-cart-root--updating');
+        root.classList.remove('psc-cart-root--updating');
       }
     };
 
     root.addEventListener('click', (event) => {
       if (!(event.target instanceof Element)) return;
-      const closeTarget = event.target.closest('[data-gk-close]');
+      const closeTarget = event.target.closest('[data-psc-close]');
       if (closeTarget) {
         closeCart();
         return;
       }
 
-      const viewAllTarget = event.target.closest('[data-gk-view-all]');
+      const viewAllTarget = event.target.closest('[data-psc-view-all]');
       if (viewAllTarget && cart) {
         productsExpanded = !productsExpanded;
         renderCart(cart);
         return;
       }
 
-      const actionTarget = event.target.closest('[data-gk-action]');
+      const actionTarget = event.target.closest('[data-psc-action]');
       if (!actionTarget || !cart) return;
       const line = Number(actionTarget.dataset.line);
       const currentItem = cart.items[line - 1];
       if (!currentItem) return;
-      const action = actionTarget.dataset.gkAction;
+      const action = actionTarget.dataset.pscAction;
       if (
         action !== 'remove'
         && (
@@ -354,7 +354,7 @@
     });
 
     document.addEventListener('keydown', (event) => {
-      if (!root.classList.contains('gk-cart-root--open')) return;
+      if (!root.classList.contains('psc-cart-root--open')) return;
       if (event.key === 'Escape') {
         closeCart();
         return;
@@ -376,7 +376,7 @@
       }
     });
 
-    const gokwikCartApi = Object.freeze({
+    const pragmaSiteCartApi = Object.freeze({
       root,
       configuration: Object.freeze({...appearance}),
       open: openCart,
@@ -389,11 +389,11 @@
         return () => document.removeEventListener(eventName, listener);
       },
     });
-    Object.defineProperty(window, 'gokwikCart', {
+    Object.defineProperty(window, 'pragmaSiteCart', {
       configurable: true,
-      value: gokwikCartApi,
+      value: pragmaSiteCartApi,
     });
-    document.dispatchEvent(new CustomEvent('gokwik:cart:ready', {detail: {api: gokwikCartApi}}));
+    document.dispatchEvent(new CustomEvent('pragma-site-cart:cart:ready', {detail: {api: pragmaSiteCartApi}}));
 
     continueButton.addEventListener('click', closeCart);
     window.addEventListener('pageshow', () => loadCart());

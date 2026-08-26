@@ -115,7 +115,7 @@ function ErrorState({message, onRetry}: {message: string; onRetry: () => void}) 
 
 function HomePage({merchant}: {merchant: Merchant}) {
   const appApiKey = document.querySelector<HTMLMetaElement>('meta[name="shopify-api-key"]')?.content;
-  const activationTarget = appApiKey ? `&activateAppId=${appApiKey}/gokwik-cart` : '';
+  const activationTarget = appApiKey ? `&activateAppId=${appApiKey}/pragma-site-cart` : '';
   const themeEditorUrl = `https://${merchant.shop_domain}/admin/themes/current/editor?context=apps${activationTarget}`;
   const activationLabel = merchant.onboarding_completed ? 'Setup complete' : 'Action required';
 

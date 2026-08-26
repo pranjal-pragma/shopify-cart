@@ -64,7 +64,7 @@ const newSalePeriod = () => {
 };
 
 export const defaultAppearance: CartAppearanceConfiguration = {
-  font_source: 'gokwik',
+  font_source: 'pragma-site-cart',
   theme_color: '#F10A0A',
   announcement_enabled: true,
   announcement_background: '#FFF2F2',
@@ -97,7 +97,7 @@ export const defaultAppearance: CartAppearanceConfiguration = {
   checkout_subtext_enabled: false,
   checkout_subtext: defaultRichText('Safe and secure checkout', 12),
   checkout_alignment: 'left',
-  gokwik_checkout: true,
+  pragma_site_cart_checkout: true,
   show_payment_icons: true,
   show_estimated_total_breakup: true,
   footer_enabled: true,
@@ -723,7 +723,7 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
           {activeTab === 'appearance' ? <>
           <EditorSection title="Font style">
             <div className="choice-list" role="radiogroup" aria-label="Font style">
-              <label><input type="radio" name="font" checked={configuration.font_source === 'gokwik'} onChange={() => update('font_source', 'gokwik')} /><span><strong>Default pragma-site-cart font</strong><small>Clean, neutral interface typeface</small></span></label>
+              <label><input type="radio" name="font" checked={configuration.font_source === 'pragma-site-cart'} onChange={() => update('font_source', 'pragma-site-cart')} /><span><strong>Default pragma-site-cart font</strong><small>Clean, neutral interface typeface</small></span></label>
               <label><input type="radio" name="font" checked={configuration.font_source === 'theme'} onChange={() => update('font_source', 'theme')} /><span><strong>Import from current theme</strong><small>Inherit your storefront typography</small></span></label>
             </div>
           </EditorSection>
@@ -767,7 +767,7 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
             <Toggle checked={configuration.checkout_subtext_enabled} label="Add subtext" onChange={(value) => update('checkout_subtext_enabled', value)} />
             {configuration.checkout_subtext_enabled && <RichTextField label="Button subtext" value={configuration.checkout_subtext} onChange={(value) => update('checkout_subtext', value)} />}
             <AlignmentPicker value={configuration.checkout_alignment} onChange={(value) => update('checkout_alignment', value)} />
-            <Toggle checked={configuration.gokwik_checkout} label="pragma-site-cart Checkout" onChange={(value) => update('gokwik_checkout', value)} />
+            <Toggle checked={configuration.pragma_site_cart_checkout} label="pragma-site-cart Checkout" onChange={(value) => update('pragma_site_cart_checkout', value)} />
             <Toggle checked={configuration.show_payment_icons} label="Show payment icons on checkout button" onChange={(value) => update('show_payment_icons', value)} />
           </EditorSection>
 

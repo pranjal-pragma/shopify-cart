@@ -1,20 +1,20 @@
 (() => {
   const initialize = (api) => {
-    if (!api?.root || window.__gokwikCartFeaturesLoaded) return;
-    window.__gokwikCartFeaturesLoaded = true;
+    if (!api?.root || window.__pragmaSiteCartFeaturesLoaded) return;
+    window.__pragmaSiteCartFeaturesLoaded = true;
 
     const {root, configuration} = api;
-    const drawer = root.querySelector('[data-gk-drawer]');
-    const footer = root.querySelector('[data-gk-footer]');
-    const notice = root.querySelector('[data-gk-notice]');
-    const checkout = root.querySelector('.gk-cart-checkout-button');
+    const drawer = root.querySelector('[data-psc-drawer]');
+    const footer = root.querySelector('[data-psc-footer]');
+    const notice = root.querySelector('[data-psc-notice]');
+    const checkout = root.querySelector('.psc-cart-checkout-button');
     const routesRoot = window.Shopify?.routes?.root || '/';
     const cartAddUrl = root.dataset.cartAddUrl || `${routesRoot}cart/add`;
     const cartChangeUrl = root.dataset.cartChangeUrl || `${routesRoot}cart/change`;
     const cartUpdateUrl = `${routesRoot}cart/update`;
     const nativeFetch = window.fetch.bind(window);
     const host = document.createElement('section');
-    host.className = 'gk-cart-features';
+    host.className = 'psc-cart-features';
     host.hidden = true;
     drawer.insertBefore(host, footer);
     let noteTimer = null;
@@ -26,7 +26,7 @@
     const showNotice = (message, error = false) => {
       notice.textContent = message;
       notice.hidden = !message;
-      notice.classList.toggle('gk-cart-notice--error', error);
+      notice.classList.toggle('psc-cart-notice--error', error);
     };
     const button = (label, className = '') => {
       const element = document.createElement('button');
@@ -37,7 +37,7 @@
     };
     const section = (className) => {
       const element = document.createElement('div');
-      element.className = `gk-cart-feature ${className}`;
+      element.className = `psc-cart-feature ${className}`;
       return element;
     };
     const addVariant = async (variantId, properties) => {
@@ -60,7 +60,7 @@
     };
     const renderDiscounts = () => {
       if (configuration.discount_mode === 'hide') return;
-      const block = section('gk-cart-feature--discount');
+      const block = section('psc-cart-feature--discount');
       if (configuration.discount_mode === 'checkout_offers') {
         block.innerHTML = '<strong>Available offers</strong><span>Discounts configured in pragma-site-cart Checkout will be validated at checkout.</span>';
       } else {
@@ -86,13 +86,13 @@
 
     const renderOrderNotes = (cart) => {
       if (!configuration.order_notes_enabled) return;
-      const block = section('gk-cart-feature--notes');
+      const block = section('psc-cart-feature--notes');
       const details = document.createElement('details');
       const summary = document.createElement('summary');
       const title = document.createElement('span');
       title.textContent = configuration.order_notes_title || 'Add special instructions';
       const savedNote = document.createElement('small');
-      savedNote.className = 'gk-cart-order-note-value';
+      savedNote.className = 'psc-cart-order-note-value';
       const displaySavedNote = (value) => {
         const note = String(value || '').trim();
         savedNote.textContent = note;
@@ -149,7 +149,7 @@
       const metric = rewardMetric(cart);
       const next = rewards.find((reward) => metric < reward.goal);
       const completed = rewards.filter((reward) => metric >= reward.goal);
-      const block = section('gk-cart-feature--rewards');
+      const block = section('psc-cart-feature--rewards');
       const message = document.createElement('span');
       message.textContent = next ? next.before_text : configuration.tiered_completion_text;
       const track = document.createElement('i');
@@ -180,9 +180,9 @@
 
     const renderOneTick = (cart) => {
       if (!configuration.one_tick_enabled || !configuration.one_tick_variant_id) return;
-      const existing = cart.items.map((item, index) => ({item, line: index + 1})).find(({item}) => isTruthy(item.properties?._gokwik_one_tick));
-      const block = section('gk-cart-feature--one-tick');
-      const action = button('', 'gk-cart-one-tick');
+      const existing = cart.items.map((item, index) => ({item, line: index + 1})).find(({item}) => isTruthy(item.properties?._pragma_site_cart_one_tick));
+      const block = section('psc-cart-feature--one-tick');
+      const action = button('', 'psc-cart-one-tick');
       action.setAttribute('role', 'checkbox');
       action.setAttribute('aria-checked', String(Boolean(existing)));
       const check = document.createElement('i');
@@ -195,7 +195,7 @@
         action.disabled = true;
         try {
           if (existing) await removeLine(existing.item, existing.line);
-          else await addVariant(configuration.one_tick_variant_id, {_gokwik_one_tick: 'true'});
+          else await addVariant(configuration.one_tick_variant_id, {_pragma_site_cart_one_tick: 'true'});
           await api.sync();
         } catch (error) {
           console.error('[pragma-site-cart] Unable to update one-tick add-on', error);
@@ -234,17 +234,17 @@
     };
     const renderSwaps = async (cart) => {
       if (!configuration.product_swap_enabled || configuration.product_swap_coexistence !== 'swap') return;
-      await Promise.all([...root.querySelectorAll('[data-gk-line]')].map(async (row) => {
-        const line = Number(row.dataset.gkLine);
+      await Promise.all([...root.querySelectorAll('[data-psc-line]')].map(async (row) => {
+        const line = Number(row.dataset.pscLine);
         const item = cart.items[line - 1];
-        if (!item || isTruthy(item.properties?._gokwik_free_gift)) return;
+        if (!item || isTruthy(item.properties?._pragma_site_cart_free_gift)) return;
         const target = await swapTargetFor(item);
         if (!target || api.getCart() !== cart) return;
-        const action = button(target.label, 'gk-cart-swap-action');
+        const action = button(target.label, 'psc-cart-swap-action');
         action.addEventListener('click', async () => {
           action.disabled = true;
           try {
-            await addVariant(target.variantId, {...(item.properties || {}), _gokwik_swap: 'true'});
+            await addVariant(target.variantId, {...(item.properties || {}), _pragma_site_cart_swap: 'true'});
             await removeLine(item, line);
             await api.sync();
           } catch (error) {
@@ -253,7 +253,7 @@
             showNotice('That product upgrade is unavailable.', true);
           }
         });
-        row.querySelector('.gk-cart-item-details')?.append(action);
+        row.querySelector('.psc-cart-item-details')?.append(action);
       }));
     };
 
@@ -268,12 +268,12 @@
       renderSwaps(cart);
     };
 
-    document.addEventListener('gokwik:cart:rendered', (event) => {
+    document.addEventListener('pragma-site-cart:cart:rendered', (event) => {
       if (event.detail?.root === root) render(event.detail.cart);
     });
     if (api.getCart()) render(api.getCart());
   };
 
-  if (window.gokwikCart) initialize(window.gokwikCart);
-  else document.addEventListener('gokwik:cart:ready', (event) => initialize(event.detail.api), {once: true});
+  if (window.pragmaSiteCart) initialize(window.pragmaSiteCart);
+  else document.addEventListener('pragma-site-cart:cart:ready', (event) => initialize(event.detail.api), {once: true});
 })();

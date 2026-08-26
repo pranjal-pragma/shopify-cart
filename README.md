@@ -1,8 +1,12 @@
-# Shopify FastAPI starter
+# pragma-site-cart
 
-A production-oriented Python backend for an embedded Shopify app. It uses FastAPI, `uv`,
-PostgreSQL, Shopify managed installation/session tokens, token exchange, GraphQL Admin API,
-verified and deduplicated webhooks, encrypted access tokens, structured logs, and health probes.
+An embedded Shopify side-cart application with a FastAPI backend, React admin, theme app
+extension, and Shopify Discount Function.
+
+## Project memory bank
+
+Read [`docs/README.md`](docs/README.md) before changing the project. Developers and coding agents
+must update the relevant memory-bank files whenever implementation changes make them inaccurate.
 
 ## Run the project locally
 
@@ -47,7 +51,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 Copy the generated value into `APP_TOKEN_ENCRYPTION_KEY` in `.env`, then configure these values:
 
 ```dotenv
-APP_SHOPIFY_APP_NAME=Pragma Cart
+APP_SHOPIFY_APP_NAME=pragma-site-cart
 APP_SHOPIFY_APP_URL=https://your-tunnel-hostname.example
 APP_SHOPIFY_CLIENT_ID=your-dev-dashboard-client-id
 APP_SHOPIFY_CLIENT_SECRET=your-dev-dashboard-client-secret

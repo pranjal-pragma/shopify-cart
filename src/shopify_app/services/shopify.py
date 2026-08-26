@@ -320,7 +320,7 @@ def free_gift_function_configuration(offer: FreeGiftOffer) -> dict[str, Any]:
 
 def free_gift_automatic_discount_input(offer: FreeGiftOffer) -> dict[str, Any]:
     return {
-        "title": f"Pragma Cart gift: {offer.title}",
+        "title": f"pragma-site-cart gift: {offer.title}",
         "functionHandle": FREE_GIFT_FUNCTION_HANDLE,
         "discountClasses": ["PRODUCT"],
         "startsAt": offer.starts_at.isoformat(),

@@ -1,7 +1,7 @@
 [project]
-name = "shopify-fastapi-app"
+name = "pragma-site-cart"
 version = "0.1.0"
-description = "Production-oriented FastAPI backend starter for embedded Shopify apps"
+description = "Embedded Shopify side cart with a FastAPI backend"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [

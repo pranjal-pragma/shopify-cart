@@ -202,7 +202,7 @@ class AnnouncementBanner(BaseModel):
 class CartAppearanceConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    font_source: Literal["gokwik", "theme"] = "gokwik"
+    font_source: Literal["pragma-site-cart", "theme"] = "pragma-site-cart"
     theme_color: HexColor = "#F10A0A"
     announcement_enabled: bool = True
     announcement_background: HexColor = "#FFF2F2"
@@ -227,7 +227,7 @@ class CartAppearanceConfiguration(BaseModel):
     checkout_subtext_enabled: bool = False
     checkout_subtext: RichTextStyle
     checkout_alignment: Literal["left", "center", "right"] = "left"
-    gokwik_checkout: bool = True
+    pragma_site_cart_checkout: bool = True
     show_payment_icons: bool = True
     show_estimated_total_breakup: bool = True
     footer_enabled: bool = True
@@ -287,15 +287,6 @@ class CartAppearanceConfiguration(BaseModel):
         if not isinstance(value, dict):
             return value
         migrated = dict(value)
-        footer_text = migrated.get("footer_text")
-        if (
-            isinstance(footer_text, dict)
-            and footer_text.get("text") == "Secure checkout powered by GoKwik"
-        ):
-            migrated["footer_text"] = {
-                **footer_text,
-                "text": "Secure checkout powered by pragma-site-cart",
-            }
         if "scarcity_timer_text" in migrated:
             legacy_text = str(migrated.pop("scarcity_timer_text") or "").replace(
                 "{time}", ""

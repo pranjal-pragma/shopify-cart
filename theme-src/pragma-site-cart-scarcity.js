@@ -1,12 +1,12 @@
 (() => {
   const initialize = (api) => {
-    if (!api?.root || window.__gokwikCartScarcityLoaded) return;
-    window.__gokwikCartScarcityLoaded = true;
+    if (!api?.root || window.__pragmaSiteCartScarcityLoaded) return;
+    window.__pragmaSiteCartScarcityLoaded = true;
 
     const {root, configuration} = api;
-    const scarcity = root.querySelector('[data-gk-scarcity]');
-    const titleElement = root.querySelector('[data-gk-scarcity-title]');
-    const timeElement = root.querySelector('[data-gk-scarcity-time]');
+    const scarcity = root.querySelector('[data-psc-scarcity]');
+    const titleElement = root.querySelector('[data-psc-scarcity-title]');
+    const timeElement = root.querySelector('[data-psc-scarcity-time]');
     const duration = Math.max(1000, (
       (configuration.scarcity_timer_days || 0) * 86_400
       + (configuration.scarcity_timer_hours || 0) * 3_600
@@ -29,8 +29,8 @@
 
     const readExpiry = () => {
       try {
-        if (sessionStorage.getItem('gokwik-cart-scarcity-signature') !== signature) return null;
-        return Number(sessionStorage.getItem('gokwik-cart-scarcity-expires')) || null;
+        if (sessionStorage.getItem('pragma-site-cart-scarcity-signature') !== signature) return null;
+        return Number(sessionStorage.getItem('pragma-site-cart-scarcity-expires')) || null;
       } catch {
         return fallbackExpiry;
       }
@@ -40,11 +40,11 @@
       fallbackExpiry = value;
       try {
         if (value) {
-          sessionStorage.setItem('gokwik-cart-scarcity-expires', String(value));
-          sessionStorage.setItem('gokwik-cart-scarcity-signature', signature);
+          sessionStorage.setItem('pragma-site-cart-scarcity-expires', String(value));
+          sessionStorage.setItem('pragma-site-cart-scarcity-signature', signature);
         } else {
-          sessionStorage.removeItem('gokwik-cart-scarcity-expires');
-          sessionStorage.removeItem('gokwik-cart-scarcity-signature');
+          sessionStorage.removeItem('pragma-site-cart-scarcity-expires');
+          sessionStorage.removeItem('pragma-site-cart-scarcity-signature');
         }
       } catch {
         // Session storage can be unavailable in privacy modes.
@@ -123,11 +123,11 @@
       interval = window.setInterval(render, 1000);
     };
 
-    document.addEventListener('gokwik:cart:rendered', (event) => {
+    document.addEventListener('pragma-site-cart:cart:rendered', (event) => {
       if (event.detail?.root === root) update(event.detail.cart);
     });
   };
 
-  if (window.gokwikCart) initialize(window.gokwikCart);
-  else document.addEventListener('gokwik:cart:ready', (event) => initialize(event.detail.api), {once: true});
+  if (window.pragmaSiteCart) initialize(window.pragmaSiteCart);
+  else document.addEventListener('pragma-site-cart:cart:ready', (event) => initialize(event.detail.api), {once: true});
 })();
