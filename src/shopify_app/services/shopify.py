@@ -14,6 +14,7 @@ from shopify_app.models import ShopSession, WebhookDelivery
 from shopify_app.schemas import (
     CartFeaturesConfiguration,
     FreeGiftOffer,
+    FreeGiftVariant,
     MerchantResponse,
     ShopConnectionResponse,
 )
@@ -332,6 +333,7 @@ def free_gift_function_configuration(offer: FreeGiftOffer) -> dict[str, Any]:
     return {
         "id": offer.id,
         "variant_id": offer.variant_id,
+        "variant_ids": [gift.variant_id for gift in offer.gift_variants],
         "quantity": offer.quantity,
         "conditions": [
             {
@@ -346,8 +348,13 @@ def free_gift_function_configuration(offer: FreeGiftOffer) -> dict[str, Any]:
     }
 
 
-def free_gift_product_handle(offer_id: str) -> str:
-    return f"{FREE_GIFT_PRODUCT_HANDLE_PREFIX}-{offer_id.lower()}"
+def free_gift_binding_key(offer_id: str, gift_id: str) -> str:
+    return offer_id if gift_id == "primary" else f"{offer_id}:{gift_id}"
+
+
+def free_gift_product_handle(offer_id: str, gift_id: str = "primary") -> str:
+    suffix = offer_id if gift_id == "primary" else f"{offer_id}-{gift_id}"
+    return f"{FREE_GIFT_PRODUCT_HANDLE_PREFIX}-{suffix.lower()}"
 
 
 def parse_inventory_levels(inventory_item: dict[str, Any]) -> tuple[GiftInventoryLevel, ...]:
@@ -387,6 +394,7 @@ def parse_gift_variant(variant: dict[str, Any]) -> GiftVariantSnapshot:
 def free_gift_product_input(
     *,
     offer: FreeGiftOffer,
+    gift_variant: FreeGiftVariant,
     source: GiftVariantSnapshot,
     target_variant_id: str | None,
     copy_inventory: bool,
@@ -414,8 +422,8 @@ def free_gift_product_input(
             for level in source.inventory_levels
         ]
     return {
-        "title": f"pragma-site-cart gift - {offer.title}",
-        "handle": free_gift_product_handle(offer.id),
+        "title": f"pragma-site-cart gift - {gift_variant.source_variant_title}",
+        "handle": free_gift_product_handle(offer.id, gift_variant.id),
         "status": "UNLISTED",
         "productType": "pragma-site-cart gift",
         "tags": ["pragma-site-cart", "free-gift"],
@@ -566,6 +574,7 @@ async def upsert_gift_product(
     shop_domain: str,
     access_token: str,
     offer: FreeGiftOffer,
+    gift_variant: FreeGiftVariant,
     source: GiftVariantSnapshot,
     target: GiftProductState | None,
     copy_inventory: bool,
@@ -617,9 +626,10 @@ async def upsert_gift_product(
             }
         """,
         variables={
-            "identifier": {"handle": free_gift_product_handle(offer.id)},
+            "identifier": {"handle": free_gift_product_handle(offer.id, gift_variant.id)},
             "input": free_gift_product_input(
                 offer=offer,
+                gift_variant=gift_variant,
                 source=source,
                 target_variant_id=target.variant.variant_id if target else None,
                 copy_inventory=copy_inventory,
@@ -765,13 +775,17 @@ async def sync_free_gift_inventory(
         shop_domain=shop_domain, db=db, client=client, cipher=cipher
     )
     desired_offers = configuration.free_gift_offers if configuration.free_gifts_enabled else []
-    desired_ids = {offer.id for offer in desired_offers}
+    desired_binding_keys = {
+        free_gift_binding_key(offer.id, gift.id)
+        for offer in desired_offers
+        for gift in offer.gift_variants
+    }
     synchronized_offers: list[FreeGiftOffer] = []
     synchronized_bindings: dict[str, dict[str, str]] = {}
 
     try:
-        for offer_id, binding in existing_bindings.items():
-            if offer_id not in desired_ids:
+        for binding_key, binding in existing_bindings.items():
+            if binding_key not in desired_binding_keys:
                 await archive_gift_product(
                     shop_domain=shop_domain,
                     access_token=access_token,
@@ -787,42 +801,57 @@ async def sync_free_gift_inventory(
             else None
         )
         for offer in desired_offers:
-            source, target = await fetch_gift_product_state(
-                shop_domain=shop_domain,
-                access_token=access_token,
-                source_variant_id=offer.source_variant_id,
-                handle=free_gift_product_handle(offer.id),
-                client=client,
-            )
-            gift = await upsert_gift_product(
-                shop_domain=shop_domain,
-                access_token=access_token,
-                offer=offer,
-                source=source,
-                target=target,
-                copy_inventory=configuration.free_gifts_copy_inventory,
-                client=client,
-            )
-            await publish_gift_product(
-                shop_domain=shop_domain,
-                access_token=access_token,
-                product_id=gift.product_id,
-                publication_id=cast(str, publication_id),
-                client=client,
-            )
-            synchronized_offers.append(
-                offer.model_copy(
+            synchronized_gifts: list[FreeGiftVariant] = []
+            for gift_option in offer.gift_variants:
+                binding_key = free_gift_binding_key(offer.id, gift_option.id)
+                source, target = await fetch_gift_product_state(
+                    shop_domain=shop_domain,
+                    access_token=access_token,
+                    source_variant_id=gift_option.source_variant_id,
+                    handle=free_gift_product_handle(offer.id, gift_option.id),
+                    client=client,
+                )
+                gift = await upsert_gift_product(
+                    shop_domain=shop_domain,
+                    access_token=access_token,
+                    offer=offer,
+                    gift_variant=gift_option,
+                    source=source,
+                    target=target,
+                    copy_inventory=configuration.free_gifts_copy_inventory,
+                    client=client,
+                )
+                await publish_gift_product(
+                    shop_domain=shop_domain,
+                    access_token=access_token,
+                    product_id=gift.product_id,
+                    publication_id=cast(str, publication_id),
+                    client=client,
+                )
+                synchronized_gift = gift_option.model_copy(
                     update={
                         "variant_id": gift.variant.variant_id,
                         "variant_title": gift.variant.title,
                     }
                 )
+                synchronized_gifts.append(synchronized_gift)
+                synchronized_bindings[binding_key] = {
+                    "product_id": gift.product_id,
+                    "variant_id": gift.variant.variant_id,
+                    "source_variant_id": gift_option.source_variant_id,
+                }
+            primary = synchronized_gifts[0]
+            synchronized_offers.append(
+                offer.model_copy(
+                    update={
+                        "source_variant_id": primary.source_variant_id,
+                        "source_variant_title": primary.source_variant_title,
+                        "variant_id": primary.variant_id,
+                        "variant_title": primary.variant_title,
+                        "gift_variants": synchronized_gifts,
+                    }
+                )
             )
-            synchronized_bindings[offer.id] = {
-                "product_id": gift.product_id,
-                "variant_id": gift.variant.variant_id,
-                "source_variant_id": offer.source_variant_id,
-            }
     except (KeyError, TypeError, ShopifyUpstreamError, httpx.HTTPError) as exc:
         raise ShopifyUnavailableError from exc
 

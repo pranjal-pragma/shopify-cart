@@ -59,17 +59,22 @@ and the theme property causes gifts to retain their normal checkout price.
 
 ## Free-gift product identity
 
-Every offer has two variant identities:
+Every entry in `gift_variants` has two variant identities:
 
 - `source_variant_id` and `source_variant_title` identify the merchant-selected catalog variant.
   Backend synchronization reads this variant but never modifies it.
-- `variant_id` and `variant_title` identify the dedicated `pragma-site-cart` gift variant used by
-  the storefront and Discount Function.
+- `variant_id` and `variant_title` identify its dedicated `pragma-site-cart` gift variant used by
+  the storefront and Discount Function. The singular fields on the offer mirror the first option
+  for backward compatibility.
 
-Generated products use the deterministic handle `pragma-site-cart-gift-{offer_id}`, have product
-type `pragma-site-cart gift`, are `UNLISTED`, and are published to Online Store so Shopify Ajax Cart
-can add them. Hidden persisted configuration `_free_gift_product_bindings` maps offer IDs to the
-generated product and variant IDs for cleanup.
+The primary generated product uses `pragma-site-cart-gift-{offer_id}`; additional options use
+`pragma-site-cart-gift-{offer_id}-{gift_option_id}`. Products have type `pragma-site-cart gift`, are
+`UNLISTED`, and are published to Online Store so Shopify Ajax Cart can add them. Hidden persisted
+configuration `_free_gift_product_bindings` maps offer-option keys to generated IDs for cleanup.
+
+`free_gift_method=auto` adds the first configured option. `free_gift_method=choice` renders all
+options but permits only one selected gift line per offer. The Discount Function receives every
+allowed generated variant ID and discounts at most one matching marked line.
 
 When `free_gifts_copy_inventory` is enabled, saving synchronizes SKU, barcode, inventory tracking,
 inventory policy, and available quantities at the source variant's active locations. When it is

@@ -1,0 +1,91 @@
+{
+  "payload": {
+    "export": "cart-lines-discounts-generate-run",
+    "target": "cart.lines.discounts.generate.run",
+    "input": {
+      "cart": {
+        "lines": [
+          {
+            "id": "gid://shopify/CartLine/regular",
+            "quantity": 2,
+            "giftOffer": null,
+            "cost": { "subtotalAmount": { "amount": "1000.0" } },
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/456",
+              "product": { "id": "gid://shopify/Product/789" }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/selected-gift",
+            "quantity": 1,
+            "giftOffer": { "value": "choice_offer" },
+            "cost": { "subtotalAmount": { "amount": "100.0" } },
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/222",
+              "product": { "id": "gid://shopify/Product/222" }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/tampered-second-gift",
+            "quantity": 1,
+            "giftOffer": { "value": "choice_offer" },
+            "cost": { "subtotalAmount": { "amount": "100.0" } },
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/111",
+              "product": { "id": "gid://shopify/Product/111" }
+            }
+          }
+        ]
+      },
+      "discount": {
+        "discountClasses": ["PRODUCT"],
+        "configuration": {
+          "jsonValue": {
+            "id": "choice_offer",
+            "variant_id": "gid://shopify/ProductVariant/111",
+            "variant_ids": [
+              "gid://shopify/ProductVariant/111",
+              "gid://shopify/ProductVariant/222"
+            ],
+            "quantity": 1,
+            "conditions": [
+              {
+                "condition_type": "cart_quantity",
+                "operator": "greater_than_or_equal",
+                "value": 2,
+                "applicable_on": "all",
+                "product_ids": []
+              }
+            ]
+          }
+        }
+      }
+    },
+    "output": {
+      "operations": [
+        {
+          "productDiscountsAdd": {
+            "candidates": [
+              {
+                "message": "FREE gift",
+                "targets": [
+                  {
+                    "cartLine": {
+                      "id": "gid://shopify/CartLine/selected-gift",
+                      "quantity": 1
+                    }
+                  }
+                ],
+                "value": { "percentage": { "value": 100 } }
+              }
+            ],
+            "selectionStrategy": "ALL"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -118,6 +118,14 @@ export interface FreeGiftCondition {
   product_titles: string[];
 }
 
+export interface FreeGiftVariant {
+  id: string;
+  source_variant_id: string;
+  source_variant_title: string;
+  variant_id: string;
+  variant_title: string;
+}
+
 export interface FreeGiftOffer {
   id: string;
   title: string;
@@ -131,6 +139,7 @@ export interface FreeGiftOffer {
   threshold: number;
   quantity: number;
   re_add_each_time: boolean;
+  gift_variants: FreeGiftVariant[];
   conditions: FreeGiftCondition[];
 }
 

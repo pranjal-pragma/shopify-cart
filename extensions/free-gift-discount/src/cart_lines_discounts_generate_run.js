@@ -54,17 +54,20 @@ export function cartLinesDiscountsGenerateRun(input) {
     return {operations: []};
   }
 
-  const targets = input.cart.lines
+  const variantIds = Array.isArray(offer.variant_ids) && offer.variant_ids.length
+    ? offer.variant_ids
+    : [offer.variant_id];
+  const selectedGiftLine = input.cart.lines
     .filter((line) => line.giftOffer?.value === offer.id)
     .filter((line) => line.merchandise.__typename === 'ProductVariant')
-    .filter((line) => line.merchandise.id === offer.variant_id)
-    .map((line) => ({
-      cartLine: {
-        id: line.id,
-        quantity: Math.min(line.quantity, offer.quantity),
-      },
-    }));
-  if (!targets.length) return {operations: []};
+    .find((line) => variantIds.includes(line.merchandise.id));
+  if (!selectedGiftLine) return {operations: []};
+  const targets = [{
+    cartLine: {
+      id: selectedGiftLine.id,
+      quantity: Math.min(selectedGiftLine.quantity, offer.quantity),
+    },
+  }];
 
   return {
     operations: [

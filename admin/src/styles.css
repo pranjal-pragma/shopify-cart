@@ -1915,6 +1915,17 @@ p {
   padding: 14px;
 }
 
+.gift-variants-field,
+.gift-variants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gift-variants-field .resource-picker-button {
+  width: max-content;
+}
+
 .button--compact {
   min-height: 32px;
   padding: 6px 10px;

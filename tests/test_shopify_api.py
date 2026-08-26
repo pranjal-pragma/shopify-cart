@@ -339,6 +339,7 @@ async def test_free_gift_offer_conditions_persist(
     offer = saved.json()["free_gift_offers"][0]
     assert offer["quantity"] == 2
     assert offer["re_add_each_time"] is True
+    assert offer["gift_variants"][0]["source_variant_id"] == ("gid://shopify/ProductVariant/123")
     assert offer["conditions"][0]["product_titles"] == ["Snowboard"]
 
 
@@ -367,6 +368,7 @@ def test_legacy_free_gift_offer_migrates_to_condition() -> None:
         "gid://shopify/ProductVariant/123"
     )
     assert configuration.free_gift_offers[0].source_variant_title == "Gift / Default"
+    assert configuration.free_gift_offers[0].gift_variants[0].id == "primary"
     assert condition.condition_type == "cart_subtotal"
     assert condition.operator == "greater_than_or_equal"
     assert condition.value == 999
@@ -406,8 +408,54 @@ def test_free_gift_discount_input_enforces_checkout_configuration() -> None:
     assert discount["discountClasses"] == ["PRODUCT"]
     assert discount["startsAt"] == now.isoformat()
     assert function_configuration["variant_id"] == "gid://shopify/ProductVariant/123"
+    assert function_configuration["variant_ids"] == ["gid://shopify/ProductVariant/123"]
     assert function_configuration["quantity"] == 2
     assert function_configuration["conditions"][0]["value"] == 500
+
+
+def test_free_gift_offer_supports_multiple_choice_variants() -> None:
+    now = datetime.now(UTC)
+    configuration = CartFeaturesConfiguration.model_validate(
+        {
+            "free_gifts_enabled": True,
+            "free_gift_method": "choice",
+            "free_gift_offers": [
+                {
+                    "id": "choice_gift",
+                    "title": "Choose a gift",
+                    "starts_at": now,
+                    "ends_at": now + timedelta(days=2),
+                    "gift_variants": [
+                        {
+                            "id": "gift_one",
+                            "source_variant_id": "gid://shopify/ProductVariant/111",
+                            "source_variant_title": "Gift one",
+                            "variant_id": "gid://shopify/ProductVariant/911",
+                            "variant_title": "Generated gift one",
+                        },
+                        {
+                            "id": "gift_two",
+                            "source_variant_id": "gid://shopify/ProductVariant/222",
+                            "source_variant_title": "Gift two",
+                            "variant_id": "gid://shopify/ProductVariant/922",
+                            "variant_title": "Generated gift two",
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+    offer = configuration.free_gift_offers[0]
+    function_configuration = json.loads(
+        free_gift_automatic_discount_input(offer)["metafields"][0]["value"]
+    )
+
+    assert offer.source_variant_id == "gid://shopify/ProductVariant/111"
+    assert offer.variant_id == "gid://shopify/ProductVariant/911"
+    assert function_configuration["variant_ids"] == [
+        "gid://shopify/ProductVariant/911",
+        "gid://shopify/ProductVariant/922",
+    ]
 
 
 def test_free_gift_product_input_copies_inventory_to_dedicated_variant() -> None:
@@ -442,6 +490,7 @@ def test_free_gift_product_input_copies_inventory_to_dedicated_variant() -> None
 
     product = free_gift_product_input(
         offer=offer,
+        gift_variant=offer.gift_variants[0],
         source=source,
         target_variant_id="gid://shopify/ProductVariant/999",
         copy_inventory=True,
@@ -493,7 +542,11 @@ def test_free_gift_product_input_does_not_copy_inventory_when_disabled() -> None
     )
 
     product = free_gift_product_input(
-        offer=offer, source=source, target_variant_id=None, copy_inventory=False
+        offer=offer,
+        gift_variant=offer.gift_variants[0],
+        source=source,
+        target_variant_id=None,
+        copy_inventory=False,
     )
     variant = product["variants"][0]
 

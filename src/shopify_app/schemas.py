@@ -98,6 +98,16 @@ class FreeGiftCondition(BaseModel):
         return self
 
 
+class FreeGiftVariant(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    source_variant_id: str = Field(pattern=r"^gid://shopify/ProductVariant/[0-9]+$")
+    source_variant_title: str = Field(min_length=1, max_length=200)
+    variant_id: str = Field(pattern=r"^gid://shopify/ProductVariant/[0-9]+$")
+    variant_title: str = Field(min_length=1, max_length=200)
+
+
 class FreeGiftOffer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -113,6 +123,7 @@ class FreeGiftOffer(BaseModel):
     threshold: float = Field(default=0, ge=0, le=10_000_000)
     quantity: int = Field(default=1, ge=1, le=20)
     re_add_each_time: bool = False
+    gift_variants: list[FreeGiftVariant] = Field(default_factory=list, min_length=1, max_length=12)
     conditions: list[FreeGiftCondition] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="before")
@@ -122,6 +133,28 @@ class FreeGiftOffer(BaseModel):
             migrated = dict(value)
             migrated.setdefault("source_variant_id", migrated.get("variant_id"))
             migrated.setdefault("source_variant_title", migrated.get("variant_title"))
+            gift_variants = migrated.get("gift_variants")
+            if not gift_variants and migrated.get("variant_id"):
+                migrated["gift_variants"] = [
+                    {
+                        "id": "primary",
+                        "source_variant_id": migrated.get("source_variant_id"),
+                        "source_variant_title": migrated.get("source_variant_title"),
+                        "variant_id": migrated.get("variant_id"),
+                        "variant_title": migrated.get("variant_title"),
+                    }
+                ]
+            elif isinstance(gift_variants, list) and gift_variants:
+                primary = gift_variants[0]
+                if isinstance(primary, dict):
+                    if not migrated.get("source_variant_id"):
+                        migrated["source_variant_id"] = primary.get("source_variant_id")
+                    if not migrated.get("source_variant_title"):
+                        migrated["source_variant_title"] = primary.get("source_variant_title")
+                    if not migrated.get("variant_id"):
+                        migrated["variant_id"] = primary.get("variant_id")
+                    if not migrated.get("variant_title"):
+                        migrated["variant_title"] = primary.get("variant_title")
             return migrated
         return value
 
@@ -129,6 +162,12 @@ class FreeGiftOffer(BaseModel):
     def validate_period(self) -> FreeGiftOffer:
         if self.ends_at <= self.starts_at:
             raise ValueError("free gift end time must be after its start time")
+        source_ids = [gift.source_variant_id for gift in self.gift_variants]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError("free gift options must use unique source variants")
+        gift_ids = [gift.id for gift in self.gift_variants]
+        if len(gift_ids) != len(set(gift_ids)):
+            raise ValueError("free gift option identifiers must be unique")
         if not self.conditions:
             self.conditions = [
                 FreeGiftCondition(

@@ -1076,6 +1076,17 @@
   font-size: 11px;
 }
 
+.psc-cart-gift-options {
+  display: grid;
+  gap: 6px;
+}
+
+.psc-cart-gift-options > span {
+  color: #555962;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .psc-cart-feature--gifts button {
   border-radius: 5px;
   text-align: left;

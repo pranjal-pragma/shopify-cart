@@ -21,17 +21,21 @@
     const numericId = (gid) => Number(String(gid || '').split('/').pop());
     const giftOfferId = (item) => String(item.properties?._pragma_site_cart_free_gift_offer || '');
     const isGift = (item) => Boolean(giftOfferId(item));
+    const giftOptions = (offer) => offer.gift_variants?.length
+      ? offer.gift_variants
+      : [{variant_id: offer.variant_id, variant_title: offer.variant_title}];
+    const giftVariantIds = (offer) => new Set(giftOptions(offer).map((gift) => numericId(gift.variant_id)));
     const showNotice = (message, error = false) => {
       notice.textContent = message;
       notice.hidden = !message;
       notice.classList.toggle('psc-cart-notice--error', error);
     };
-    const addGift = async (offer) => {
+    const addGift = async (offer, gift = giftOptions(offer)[0]) => {
       const response = await nativeFetch(`${cartAddUrl}.js`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
         credentials: 'same-origin',
-        body: JSON.stringify({items: [{id: numericId(offer.variant_id), quantity: Number(offer.quantity || 1), properties: {_pragma_site_cart_free_gift: 'true', _pragma_site_cart_free_gift_offer: offer.id}}]}),
+        body: JSON.stringify({items: [{id: numericId(gift.variant_id), quantity: Number(offer.quantity || 1), properties: {_pragma_site_cart_free_gift: 'true', _pragma_site_cart_free_gift_offer: offer.id}}]}),
       });
       if (!response.ok) throw new Error(`Gift add failed (${response.status})`);
       handledOffers.add(offer.id);
@@ -67,40 +71,56 @@
     const activeOffers = (cart) => (configuration.free_gift_offers || []).filter((offer) => offerIsActive(offer, cart));
     const renderChoices = (cart, offers) => {
       host.replaceChildren();
-      const selected = new Set(cart.items.map(giftOfferId));
+      const selected = new Map(
+        cart.items.filter(isGift).map((item) => [giftOfferId(item), Number(item.variant_id)]),
+      );
       host.hidden = configuration.free_gift_method !== 'choice' || !offers.length;
       if (host.hidden) return;
       const title = document.createElement('strong');
       title.textContent = 'Choose your free gift';
       host.append(title);
       offers.forEach((offer) => {
-        const action = document.createElement('button');
-        action.type = 'button';
-        action.textContent = selected.has(offer.id) ? `${offer.title} added` : `${offer.title} · Qty ${offer.quantity || 1}`;
-        action.disabled = selected.has(offer.id);
-        action.addEventListener('click', async () => {
-          action.disabled = true;
-          try {
-            await addGift(offer);
-            await api.sync();
-            if (configuration.free_gift_congratulations) showNotice('Congratulations! Your free gift was added.');
-          } catch (error) {
-            console.error('[pragma-site-cart] Unable to add selected gift', error);
-            action.disabled = false;
-            showNotice('That gift could not be added.', true);
-          }
+        const group = document.createElement('div');
+        group.className = 'psc-cart-gift-options';
+        const offerTitle = document.createElement('span');
+        offerTitle.textContent = offer.title;
+        group.append(offerTitle);
+        giftOptions(offer).forEach((gift) => {
+          const action = document.createElement('button');
+          action.type = 'button';
+          const giftTitle = gift.source_variant_title || gift.variant_title;
+          action.textContent = selected.get(offer.id) === numericId(gift.variant_id)
+            ? `${giftTitle} added`
+            : `${giftTitle} · Qty ${offer.quantity || 1}`;
+          action.disabled = selected.has(offer.id);
+          action.addEventListener('click', async () => {
+            group.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+            try {
+              await addGift(offer, gift);
+              await api.sync();
+              if (configuration.free_gift_congratulations) showNotice('Congratulations! Your free gift was added.');
+            } catch (error) {
+              console.error('[pragma-site-cart] Unable to add selected gift', error);
+              group.querySelectorAll('button').forEach((button) => { button.disabled = false; });
+              showNotice('That gift could not be added.', true);
+            }
+          });
+          group.append(action);
         });
-        host.append(action);
+        host.append(group);
       });
     };
     const reconcile = async (cart) => {
       if (mutationRunning) return;
       const offers = activeOffers(cart);
       renderChoices(cart, offers);
-      const validIds = new Set(offers.map((offer) => offer.id));
+      const offersById = new Map(offers.map((offer) => [offer.id, offer]));
       const giftItems = cart.items.map((item, index) => ({item, line: index + 1})).filter(({item}) => isGift(item));
       giftItems.forEach(({item}) => handledOffers.add(giftOfferId(item)));
-      const stale = giftItems.filter(({item}) => !validIds.has(giftOfferId(item)));
+      const stale = giftItems.filter(({item}) => {
+        const offer = offersById.get(giftOfferId(item));
+        return !offer || !giftVariantIds(offer).has(Number(item.variant_id));
+      });
       const currentIds = new Set(giftItems.map(({item}) => giftOfferId(item)));
       const missing = configuration.free_gift_method === 'auto'
         ? offers.filter((offer) => !currentIds.has(offer.id) && (offer.re_add_each_time || !handledOffers.has(offer.id)))

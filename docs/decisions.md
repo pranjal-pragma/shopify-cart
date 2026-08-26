@@ -3,6 +3,18 @@
 Add new entries at the top. Record the date, decision, reason, and consequences. Do not rewrite
 past decisions unless they are factually incorrect; add a superseding entry instead.
 
+## 2026-08-26: Model customer gift choice inside an offer
+
+**Decision:** A free-gift offer owns one to twelve ordered gift options. Auto mode uses the first;
+choice mode lets a shopper select exactly one option for that offer.
+
+**Reason:** Treating separate offers as gift choices duplicated eligibility settings and allowed a
+shopper to add every eligible offer instead of making one selection.
+
+**Consequences:** Each option has its own source and generated variant identities and dedicated
+Shopify product. The Discount Function accepts all generated option IDs but discounts only one
+marked line per offer. Legacy singular gift offers migrate into a `primary` option.
+
 ## 2026-08-26: Isolate free-gift inventory from catalog products
 
 **Decision:** Each free-gift offer uses a dedicated unlisted product and variant. The selected
