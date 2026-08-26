@@ -3,14 +3,19 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shopify_app.models import ShopSession, WebhookDelivery
-from shopify_app.schemas import MerchantResponse, ShopConnectionResponse
+from shopify_app.schemas import (
+    CartFeaturesConfiguration,
+    FreeGiftOffer,
+    MerchantResponse,
+    ShopConnectionResponse,
+)
 from shopify_app.security import (
     AuthenticationError,
     TokenCipher,
@@ -22,6 +27,9 @@ from shopify_app.shopify_client import ShopifyClient, ShopifyUpstreamError
 TOKEN_REFRESH_MARGIN = timedelta(minutes=5)
 APPEARANCE_METAFIELD_NAMESPACE = "cart"
 APPEARANCE_METAFIELD_KEY = "appearance"
+FREE_GIFT_FUNCTION_HANDLE = "free-gift-discount"
+FREE_GIFT_METAFIELD_NAMESPACE = "$app"
+FREE_GIFT_METAFIELD_KEY = "function-configuration"
 
 
 class ShopifyServiceError(Exception):
@@ -290,6 +298,152 @@ async def publish_cart_appearance(
             raise ShopifyUpstreamError("Shopify rejected the cart appearance metafield")
     except (KeyError, TypeError, ShopifyUpstreamError, httpx.HTTPError) as exc:
         raise ShopifyUnavailableError from exc
+
+
+def free_gift_function_configuration(offer: FreeGiftOffer) -> dict[str, Any]:
+    return {
+        "id": offer.id,
+        "variant_id": offer.variant_id,
+        "quantity": offer.quantity,
+        "conditions": [
+            {
+                "condition_type": condition.condition_type,
+                "operator": condition.operator,
+                "value": condition.value,
+                "applicable_on": condition.applicable_on,
+                "product_ids": condition.product_ids,
+            }
+            for condition in offer.conditions
+        ],
+    }
+
+
+def free_gift_automatic_discount_input(offer: FreeGiftOffer) -> dict[str, Any]:
+    return {
+        "title": f"Pragma Cart gift: {offer.title}",
+        "functionHandle": FREE_GIFT_FUNCTION_HANDLE,
+        "discountClasses": ["PRODUCT"],
+        "startsAt": offer.starts_at.isoformat(),
+        "endsAt": offer.ends_at.isoformat(),
+        "combinesWith": {
+            "orderDiscounts": True,
+            "productDiscounts": False,
+            "shippingDiscounts": True,
+        },
+        "metafields": [
+            {
+                "namespace": FREE_GIFT_METAFIELD_NAMESPACE,
+                "key": FREE_GIFT_METAFIELD_KEY,
+                "type": "json",
+                "value": json.dumps(
+                    free_gift_function_configuration(offer), separators=(",", ":")
+                ),
+            }
+        ],
+    }
+
+
+def validated_discount_result(payload: dict[str, Any], field: str) -> dict[str, Any]:
+    try:
+        result = payload["data"][field]
+        if payload.get("errors") or result["userErrors"]:
+            raise ShopifyUpstreamError("Shopify rejected the free gift discount")
+        return cast(dict[str, Any], result)
+    except (KeyError, TypeError) as exc:
+        raise ShopifyUpstreamError("Shopify returned an invalid discount response") from exc
+
+
+async def sync_free_gift_discounts(
+    *,
+    shop_domain: str,
+    configuration: CartFeaturesConfiguration,
+    existing_discount_ids: dict[str, str],
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> dict[str, str]:
+    session = await db.get(ShopSession, shop_domain)
+    if session is None or session.app_installation_gid is None:
+        return existing_discount_ids
+
+    access_token = await get_valid_access_token(
+        shop_domain=shop_domain, db=db, client=client, cipher=cipher
+    )
+    desired_offers = {
+        offer.id: offer for offer in configuration.free_gift_offers
+    } if configuration.free_gifts_enabled else {}
+    synced_ids: dict[str, str] = {}
+
+    try:
+        for offer_id, discount_id in existing_discount_ids.items():
+            if offer_id in desired_offers:
+                continue
+            payload = await client.graphql(
+                shop_domain=shop_domain,
+                access_token=access_token,
+                query="""
+                    mutation DeleteFreeGiftDiscount($id: ID!) {
+                      discountAutomaticDelete(id: $id) {
+                        deletedAutomaticDiscountId
+                        userErrors { field message code }
+                      }
+                    }
+                """,
+                variables={"id": discount_id},
+            )
+            validated_discount_result(payload, "discountAutomaticDelete")
+
+        for offer_id, offer in desired_offers.items():
+            automatic_discount = free_gift_automatic_discount_input(offer)
+            existing_id = existing_discount_ids.get(offer_id)
+            if existing_id:
+                payload = await client.graphql(
+                    shop_domain=shop_domain,
+                    access_token=access_token,
+                    query="""
+                        mutation UpdateFreeGiftDiscount(
+                          $id: ID!,
+                          $automaticAppDiscount: DiscountAutomaticAppInput!
+                        ) {
+                          discountAutomaticAppUpdate(
+                            id: $id,
+                            automaticAppDiscount: $automaticAppDiscount
+                          ) {
+                            automaticAppDiscount { discountId }
+                            userErrors { field message code }
+                          }
+                        }
+                    """,
+                    variables={
+                        "id": existing_id,
+                        "automaticAppDiscount": automatic_discount,
+                    },
+                )
+                result = validated_discount_result(payload, "discountAutomaticAppUpdate")
+            else:
+                payload = await client.graphql(
+                    shop_domain=shop_domain,
+                    access_token=access_token,
+                    query="""
+                        mutation CreateFreeGiftDiscount(
+                          $automaticAppDiscount: DiscountAutomaticAppInput!
+                        ) {
+                          discountAutomaticAppCreate(
+                            automaticAppDiscount: $automaticAppDiscount
+                          ) {
+                            automaticAppDiscount { discountId }
+                            userErrors { field message code }
+                          }
+                        }
+                    """,
+                    variables={"automaticAppDiscount": automatic_discount},
+                )
+                result = validated_discount_result(payload, "discountAutomaticAppCreate")
+            synced_ids[offer_id] = result["automaticAppDiscount"]["discountId"]
+    except (KeyError, TypeError, ShopifyUpstreamError, httpx.HTTPError) as exc:
+        raise ShopifyUnavailableError from exc
+
+    return synced_ids
 
 
 async def process_webhook(

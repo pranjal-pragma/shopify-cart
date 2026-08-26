@@ -1,0 +1,8 @@
+/Users/pranjalrana/Documents/pragma/shopify-cart-app/extensions/free-gift-discount/target/debug/deps/shopify_function-476b6498fbdc13ff.d: /Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/lib.rs /Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/scalars.rs /Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/scalars/decimal.rs /Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/scalars/json_value.rs
+
+/Users/pranjalrana/Documents/pragma/shopify-cart-app/extensions/free-gift-discount/target/debug/deps/libshopify_function-476b6498fbdc13ff.rmeta: /Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/lib.rs /Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/scalars.rs /Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/scalars/decimal.rs /Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/scalars/json_value.rs
+
+/Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/lib.rs:
+/Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/scalars.rs:
+/Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/scalars/decimal.rs:
+/Users/pranjalrana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shopify_function-2.2.0/src/scalars/json_value.rs:

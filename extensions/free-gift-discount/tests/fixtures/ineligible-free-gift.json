@@ -1,0 +1,54 @@
+{
+  "payload": {
+    "export": "cart-lines-discounts-generate-run",
+    "target": "cart.lines.discounts.generate.run",
+    "input": {
+      "cart": {
+        "lines": [
+          {
+            "id": "gid://shopify/CartLine/regular",
+            "quantity": 1,
+            "giftOffer": null,
+            "cost": { "subtotalAmount": { "amount": "100.0" } },
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/456",
+              "product": { "id": "gid://shopify/Product/789" }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/gift",
+            "quantity": 1,
+            "giftOffer": { "value": "gift_offer" },
+            "cost": { "subtotalAmount": { "amount": "100.0" } },
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/123",
+              "product": { "id": "gid://shopify/Product/321" }
+            }
+          }
+        ]
+      },
+      "discount": {
+        "discountClasses": ["PRODUCT"],
+        "configuration": {
+          "jsonValue": {
+            "id": "gift_offer",
+            "variant_id": "gid://shopify/ProductVariant/123",
+            "quantity": 1,
+            "conditions": [
+              {
+                "condition_type": "cart_subtotal",
+                "operator": "greater_than_or_equal",
+                "value": 500,
+                "applicable_on": "all",
+                "product_ids": []
+              }
+            ]
+          }
+        }
+      }
+    },
+    "output": { "operations": [] }
+  }
+}

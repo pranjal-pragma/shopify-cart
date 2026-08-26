@@ -4,8 +4,14 @@ application_url = __SHOPIFY_APP_URL__
 embedded = true
 
 [access_scopes]
-scopes = "read_products"
+scopes = "read_products,write_discounts"
 use_legacy_install_flow = false
+
+[discount.metafields.app.function-configuration]
+type = "json"
+name = "Free gift configuration"
+access.admin = "merchant_read_write"
+access.storefront = "none"
 
 [auth]
 redirect_urls = []

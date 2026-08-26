@@ -1,0 +1,76 @@
+{
+  "payload": {
+    "export": "cart-lines-discounts-generate-run",
+    "target": "cart.lines.discounts.generate.run",
+    "input": {
+      "cart": {
+        "lines": [
+          {
+            "id": "gid://shopify/CartLine/regular",
+            "quantity": 2,
+            "giftOffer": null,
+            "cost": { "subtotalAmount": { "amount": "1000.0" } },
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/456",
+              "product": { "id": "gid://shopify/Product/789" }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/gift",
+            "quantity": 3,
+            "giftOffer": { "value": "gift_offer" },
+            "cost": { "subtotalAmount": { "amount": "300.0" } },
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/123",
+              "product": { "id": "gid://shopify/Product/321" }
+            }
+          }
+        ]
+      },
+      "discount": {
+        "discountClasses": ["PRODUCT"],
+        "configuration": {
+          "jsonValue": {
+            "id": "gift_offer",
+            "variant_id": "gid://shopify/ProductVariant/123",
+            "quantity": 2,
+            "conditions": [
+              {
+                "condition_type": "cart_quantity",
+                "operator": "greater_than_or_equal",
+                "value": 2,
+                "applicable_on": "products",
+                "product_ids": ["gid://shopify/Product/789"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "output": {
+      "operations": [
+        {
+          "productDiscountsAdd": {
+            "candidates": [
+              {
+                "message": "FREE gift",
+                "targets": [
+                  {
+                    "cartLine": {
+                      "id": "gid://shopify/CartLine/gift",
+                      "quantity": 2
+                    }
+                  }
+                ],
+                "value": { "percentage": { "value": 100 } }
+              }
+            ],
+            "selectionStrategy": "ALL"
+          }
+        }
+      ]
+    }
+  }
+}

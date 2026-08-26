@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -13,6 +14,7 @@ from shopify_app.schemas import (
     ShopifyInstallationIdentity,
     TokenExchangeResponse,
 )
+from shopify_app.services.shopify import free_gift_automatic_discount_input
 from shopify_app.shopify_client import ShopifyClient
 
 
@@ -374,6 +376,44 @@ def test_legacy_free_gift_offer_migrates_to_condition() -> None:
     assert condition.condition_type == "cart_subtotal"
     assert condition.operator == "greater_than_or_equal"
     assert condition.value == 999
+
+
+def test_free_gift_discount_input_enforces_checkout_configuration() -> None:
+    now = datetime.now(UTC)
+    configuration = CartFeaturesConfiguration.model_validate(
+        {
+            "free_gifts_enabled": True,
+            "free_gift_offers": [
+                {
+                    "id": "checkout_gift",
+                    "title": "Checkout gift",
+                    "starts_at": now,
+                    "ends_at": now + timedelta(days=2),
+                    "variant_id": "gid://shopify/ProductVariant/123",
+                    "variant_title": "Gift / Default",
+                    "quantity": 2,
+                    "conditions": [
+                        {
+                            "id": "minimum_cart",
+                            "condition_type": "cart_subtotal",
+                            "operator": "greater_than_or_equal",
+                            "value": 500,
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+    discount = free_gift_automatic_discount_input(configuration.free_gift_offers[0])
+    function_configuration = json.loads(discount["metafields"][0]["value"])
+
+    assert discount["functionHandle"] == "free-gift-discount"
+    assert discount["discountClasses"] == ["PRODUCT"]
+    assert discount["startsAt"] == now.isoformat()
+    assert function_configuration["variant_id"] == "gid://shopify/ProductVariant/123"
+    assert function_configuration["quantity"] == 2
+    assert function_configuration["conditions"][0]["value"] == 500
 
 
 def test_cart_appearance_migrates_legacy_scarcity_text() -> None:

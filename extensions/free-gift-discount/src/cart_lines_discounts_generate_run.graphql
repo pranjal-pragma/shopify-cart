@@ -1,0 +1,31 @@
+query Input {
+  cart {
+    lines {
+      id
+      quantity
+      giftOffer: attribute(key: "_gokwik_free_gift_offer") {
+        value
+      }
+      cost {
+        subtotalAmount {
+          amount
+        }
+      }
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          product {
+            id
+          }
+        }
+      }
+    }
+  }
+  discount {
+    discountClasses
+    configuration: metafield(namespace: "$app", key: "function-configuration") {
+      jsonValue
+    }
+  }
+}

@@ -27,6 +27,7 @@ from shopify_app.services.shopify import (
     get_merchant_identity,
     process_webhook,
     publish_cart_appearance,
+    sync_free_gift_discounts,
 )
 from shopify_app.shopify_client import ShopifyClient
 
@@ -205,9 +206,40 @@ async def save_cart_features(
     cipher: TokenCipher,
 ) -> CartFeaturesResponse:
     _, shop_domain = auth
+    existing = await db.get(CartAppearance, shop_domain)
+    stored_discount_ids = (
+        existing.configuration.get("_free_gift_discount_ids", {}) if existing else {}
+    )
+    if not isinstance(stored_discount_ids, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in stored_discount_ids.items()
+    ):
+        stored_discount_ids = {}
+    try:
+        discount_ids = await sync_free_gift_discounts(
+            shop_domain=shop_domain,
+            configuration=configuration,
+            existing_discount_ids=cast(dict[str, str], stored_discount_ids),
+            db=db,
+            client=client,
+            cipher=cipher,
+        )
+    except TokenExchangeRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
+        ) from exc
+    except ShopifyUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not synchronize Shopify free gift discounts",
+        ) from exc
+
     appearance = await publish_and_store_cart_configuration(
         shop_domain=shop_domain,
-        section=configuration.model_dump(mode="json"),
+        section={
+            **configuration.model_dump(mode="json"),
+            "_free_gift_discount_ids": discount_ids,
+        },
         db=db,
         client=client,
         cipher=cipher,
