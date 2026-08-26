@@ -995,9 +995,21 @@
 
 .gk-cart-feature--notes summary {
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
   font-size: 11px;
   font-weight: 700;
+  gap: 3px;
   padding: 10px;
+}
+
+.gk-cart-order-note-value {
+  color: var(--gk-cart-muted);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .gk-cart-feature--notes textarea {

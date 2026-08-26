@@ -133,7 +133,17 @@
       const block = section('gk-cart-feature--notes');
       const details = document.createElement('details');
       const summary = document.createElement('summary');
-      summary.textContent = configuration.order_notes_title || 'Add special instructions';
+      const title = document.createElement('span');
+      title.textContent = configuration.order_notes_title || 'Add special instructions';
+      const savedNote = document.createElement('small');
+      savedNote.className = 'gk-cart-order-note-value';
+      const displaySavedNote = (value) => {
+        const note = String(value || '').trim();
+        savedNote.textContent = note;
+        savedNote.hidden = !note;
+      };
+      displaySavedNote(cart.note);
+      summary.append(title, savedNote);
       const textarea = document.createElement('textarea');
       textarea.value = cart.note || '';
       textarea.maxLength = 500;
@@ -150,6 +160,8 @@
               body: JSON.stringify({note: textarea.value}),
             });
             if (!response.ok) throw new Error(`Cart note failed (${response.status})`);
+            const updatedCart = await response.json();
+            displaySavedNote(updatedCart.note ?? textarea.value);
             showNotice('Order note saved.');
           } catch (error) {
             console.error('[GoKwik Cart] Unable to save order note', error);
