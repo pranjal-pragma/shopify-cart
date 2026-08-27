@@ -106,6 +106,12 @@ disabled, the generated gift variant is untracked with blank SKU and barcode. Ne
 to the source product or source inventory item. Removing an offer or disabling free gifts archives
 its generated product.
 
+Free-gift product and Discount Function synchronization runs only when `free_gifts_enabled`,
+`free_gifts_copy_inventory`, `free_gift_method`, or `free_gift_offers` changes. Saves to unrelated
+Cart Features fields preserve the stored gift bindings and discount IDs and publish only the shared
+cart configuration. This prevents a stale gift campaign from blocking notes, rewards, add-ons, or
+other feature saves.
+
 ## Configuration naming
 
 - The app-provided font source value is `pragma-site-cart`; `theme` selects storefront fonts.

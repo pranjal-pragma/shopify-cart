@@ -438,7 +438,12 @@ def validated_shopify_result(
     try:
         result = payload["data"][field]
         if payload.get("errors") or result["userErrors"]:
-            raise ShopifyUpstreamError(error_message)
+            errors = payload.get("errors") or result["userErrors"]
+            details = "; ".join(
+                str(error.get("message", error)) if isinstance(error, dict) else str(error)
+                for error in errors
+            )
+            raise ShopifyUpstreamError(f"{error_message}: {details}")
         return cast(dict[str, Any], result)
     except (KeyError, TypeError) as exc:
         raise ShopifyUpstreamError(error_message) from exc
@@ -888,7 +893,12 @@ def validated_discount_result(payload: dict[str, Any], field: str) -> dict[str, 
     try:
         result = payload["data"][field]
         if payload.get("errors") or result["userErrors"]:
-            raise ShopifyUpstreamError("Shopify rejected the free gift discount")
+            errors = payload.get("errors") or result["userErrors"]
+            details = "; ".join(
+                str(error.get("message", error)) if isinstance(error, dict) else str(error)
+                for error in errors
+            )
+            raise ShopifyUpstreamError(f"Shopify rejected the free gift discount: {details}")
         return cast(dict[str, Any], result)
     except (KeyError, TypeError) as exc:
         raise ShopifyUpstreamError("Shopify returned an invalid discount response") from exc

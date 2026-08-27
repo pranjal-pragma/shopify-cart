@@ -108,6 +108,19 @@ def default_cart_upsell() -> CartUpsellConfiguration:
     return CartUpsellConfiguration()
 
 
+def free_gift_configuration_changed(
+    previous: CartFeaturesConfiguration,
+    current: CartFeaturesConfiguration,
+) -> bool:
+    gift_fields = (
+        "free_gifts_enabled",
+        "free_gifts_copy_inventory",
+        "free_gift_method",
+        "free_gift_offers",
+    )
+    return any(getattr(previous, field) != getattr(current, field) for field in gift_fields)
+
+
 async def publish_and_store_cart_configuration(
     *,
     shop_domain: str,
@@ -224,32 +237,51 @@ async def save_cart_features(
         for key, value in stored_discount_ids.items()
     ):
         stored_discount_ids = {}
-    try:
-        synchronized_configuration, gift_bindings = await sync_free_gift_inventory(
-            shop_domain=shop_domain,
-            configuration=configuration,
-            existing_bindings=stored_gift_bindings,
-            db=db,
-            client=client,
-            cipher=cipher,
+    previous_configuration = (
+        CartFeaturesConfiguration.model_validate(
+            configuration_section(
+                existing.configuration, set(CartFeaturesConfiguration.model_fields)
+            )
         )
-        discount_ids = await sync_free_gift_discounts(
-            shop_domain=shop_domain,
-            configuration=synchronized_configuration,
-            existing_discount_ids=cast(dict[str, str], stored_discount_ids),
-            db=db,
-            client=client,
-            cipher=cipher,
-        )
-    except TokenExchangeRequiredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
-        ) from exc
-    except ShopifyUnavailableError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Could not synchronize Shopify free gift products and discounts",
-        ) from exc
+        if existing
+        else default_cart_features()
+    )
+    synchronized_configuration = configuration
+    gift_bindings = stored_gift_bindings
+    discount_ids = cast(dict[str, str], stored_discount_ids)
+    if free_gift_configuration_changed(previous_configuration, configuration):
+        try:
+            synchronized_configuration, gift_bindings = await sync_free_gift_inventory(
+                shop_domain=shop_domain,
+                configuration=configuration,
+                existing_bindings=stored_gift_bindings,
+                db=db,
+                client=client,
+                cipher=cipher,
+            )
+            discount_ids = await sync_free_gift_discounts(
+                shop_domain=shop_domain,
+                configuration=synchronized_configuration,
+                existing_discount_ids=cast(dict[str, str], stored_discount_ids),
+                db=db,
+                client=client,
+                cipher=cipher,
+            )
+        except TokenExchangeRequiredError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
+            ) from exc
+        except ShopifyUnavailableError as exc:
+            cause = exc.__cause__ or exc
+            logger.warning(
+                "free_gift_synchronization_failed",
+                shop_domain=shop_domain,
+                error=str(cause),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Could not synchronize Shopify free gift products and discounts",
+            ) from exc
 
     appearance = await publish_and_store_cart_configuration(
         shop_domain=shop_domain,
