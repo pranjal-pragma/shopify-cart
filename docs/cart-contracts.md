@@ -38,6 +38,10 @@ Lifecycle events:
 
 Custom scripts receive `pragmaSiteCart` and `configuration` arguments.
 
+Embedded admin sidebar links use pathname routes (`/appearance`, `/features`, `/upsell`, and
+`/checkout`) because Shopify App Bridge navigation does not use URL fragments for destination
+matching. FastAPI serves the admin SPA index at each route.
+
 When `block_cart_page_redirection` is enabled, the settings bundle owns recognized storefront cart
 triggers. It intercepts clicks during window capture, prevents navigation, stops theme click
 handlers, opens `pragma-site-cart`, and hides common native cart drawers and notifications. Built-in

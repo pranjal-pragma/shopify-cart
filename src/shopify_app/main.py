@@ -107,6 +107,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         return FileResponse(index)
 
+    for admin_route in ("/appearance", "/features", "/upsell", "/checkout"):
+        app.add_api_route(admin_route, admin_index, include_in_schema=False)
+
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         logger.exception("unhandled_exception", path=request.url.path)

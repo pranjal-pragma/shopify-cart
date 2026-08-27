@@ -42,21 +42,21 @@ const setupActions: Array<{
   {
     title: 'Cart appearance',
     description: 'Style the drawer to match your storefront.',
-    href: '#appearance',
+    href: '/appearance',
     icon: Palette,
     accent: 'coral',
   },
   {
     title: 'Cart features',
     description: 'Configure offers, rewards, notes and gifts.',
-    href: '#features',
+    href: '/features',
     icon: Gift,
     accent: 'green',
   },
   {
     title: 'Cart upsell',
     description: 'Build product recommendations that lift AOV.',
-    href: '#upsell',
+    href: '/upsell',
     icon: Sparkles,
     accent: 'blue',
   },
@@ -67,11 +67,9 @@ function AppShell({children, pageId = 'home'}: {children: React.ReactNode; pageI
     <div className="app-shell">
       <s-app-nav>
         <s-link href="/" rel="home">Home</s-link>
-        <s-link href="/#appearance">Cart appearance</s-link>
-        <s-link href="/#features">Cart features</s-link>
-        <s-link href="/#upsell">Cart upsell</s-link>
-        <s-link href="/#checkout">Checkout</s-link>
-        <s-link href="/#pricing">Pricing</s-link>
+        <s-link href="/appearance">Cart appearance</s-link>
+        <s-link href="/features">Cart features</s-link>
+        <s-link href="/upsell">Cart upsell</s-link>
       </s-app-nav>
       <main className={`page${pageId === 'appearance' || pageId === 'features' || pageId === 'upsell' ? ' page--appearance' : ''}`} id={pageId}>
         {children}
@@ -239,7 +237,7 @@ export default function App() {
   const [merchant, setMerchant] = useState<Merchant | null>(previewMerchant);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [route, setRoute] = useState(window.location.hash);
+  const [route, setRoute] = useState(window.location.pathname);
 
   const retry = useCallback(() => {
     setMerchant(null);
@@ -264,20 +262,20 @@ export default function App() {
   }, [attempt]);
 
   useEffect(() => {
-    const updateRoute = () => setRoute(window.location.hash);
-    window.addEventListener('hashchange', updateRoute);
-    return () => window.removeEventListener('hashchange', updateRoute);
+    const updateRoute = () => setRoute(window.location.pathname);
+    window.addEventListener('popstate', updateRoute);
+    return () => window.removeEventListener('popstate', updateRoute);
   }, []);
 
   if (error) return <ErrorState message={error} onRetry={retry} />;
   if (!merchant) return <LoadingState />;
-  if (route === '#appearance') {
+  if (route === '/appearance') {
     return <AppShell pageId="appearance"><CartAppearancePage previewMode={Boolean(previewMerchant)} /></AppShell>;
   }
-  if (route === '#features') {
+  if (route === '/features') {
     return <AppShell pageId="features"><CartFeaturesPage previewMode={Boolean(previewMerchant)} /></AppShell>;
   }
-  if (route === '#upsell') {
+  if (route === '/upsell') {
     return <AppShell pageId="upsell"><CartUpsellPage previewMode={Boolean(previewMerchant)} /></AppShell>;
   }
   return <HomePage merchant={merchant} />;

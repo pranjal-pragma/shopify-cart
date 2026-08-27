@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 
 
 async def test_liveness(client: httpx.AsyncClient) -> None:
@@ -33,3 +34,13 @@ async def test_api_csp_remains_restricted(client: httpx.AsyncClient) -> None:
     csp = response.headers["content-security-policy"]
     assert "script-src 'self' https://cdn.shopify.com" in csp
     assert "cdn.jsdelivr.net" not in csp
+
+
+@pytest.mark.parametrize("path", ["/", "/appearance", "/features", "/upsell", "/checkout"])
+async def test_admin_routes_serve_the_embedded_app(
+    client: httpx.AsyncClient, path: str
+) -> None:
+    response = await client.get(path)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(("text/html", "text/plain"))
