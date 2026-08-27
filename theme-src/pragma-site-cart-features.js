@@ -7,7 +7,6 @@
     const drawer = root.querySelector('[data-psc-drawer]');
     const footer = root.querySelector('[data-psc-footer]');
     const notice = root.querySelector('[data-psc-notice]');
-    const checkout = root.querySelector('.psc-cart-checkout-button');
     const routesRoot = window.Shopify?.routes?.root || '/';
     const cartAddUrl = root.dataset.cartAddUrl || `${routesRoot}cart/add`;
     const cartChangeUrl = root.dataset.cartChangeUrl || `${routesRoot}cart/change`;
@@ -58,7 +57,33 @@
       });
       if (!response.ok) throw new Error(`Cart change failed (${response.status})`);
     };
-    const renderDiscounts = () => {
+    const discountCodes = (cart) => {
+      const applications = [
+        ...(cart.cart_level_discount_applications || []),
+        ...(cart.items || []).flatMap((item) =>
+          (item.line_level_discount_allocations || []).map(
+            (allocation) => allocation.discount_application,
+          ),
+        ),
+      ];
+      return [...new Set(
+        applications
+          .filter((application) => application?.type === 'discount_code')
+          .map((application) => String(application.title || '').trim())
+          .filter(Boolean),
+      )];
+    };
+    const updateDiscounts = async (discount) => {
+      const response = await nativeFetch(`${cartUpdateUrl}.js`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({discount}),
+      });
+      if (!response.ok) throw new Error(`Cart discount failed (${response.status})`);
+      return response.json();
+    };
+    const renderDiscounts = (cart) => {
       if (configuration.discount_mode === 'hide') return;
       const block = section('psc-cart-feature--discount');
       if (configuration.discount_mode === 'checkout_offers') {
@@ -70,16 +95,55 @@
         input.placeholder = 'Enter coupon code';
         input.setAttribute('aria-label', 'Coupon code');
         const apply = button('Apply');
+        apply.type = 'submit';
         form.append(input, apply);
-        form.addEventListener('submit', (event) => {
+        form.addEventListener('submit', async (event) => {
           event.preventDefault();
           const code = input.value.trim();
           if (!code) return;
-          checkout.href = `${routesRoot}discount/${encodeURIComponent(code)}?redirect=${encodeURIComponent(`${routesRoot}checkout`)}`;
-          block.classList.add('is-applied');
-          showNotice(`${code} will be validated at checkout.`);
+          apply.disabled = true;
+          apply.textContent = 'Applying...';
+          try {
+            const updatedCart = await updateDiscounts(code);
+            const appliedCodes = discountCodes(updatedCart);
+            await api.sync();
+            if (!appliedCodes.some((value) => value.toLowerCase() === code.toLowerCase())) {
+              showNotice(`${code} is invalid or not eligible for this cart.`, true);
+            } else {
+              showNotice(`${code} applied.`);
+            }
+          } catch (error) {
+            console.error('[pragma-site-cart] Unable to apply coupon', error);
+            showNotice('The coupon could not be applied. Please try again.', true);
+            apply.disabled = false;
+            apply.textContent = 'Apply';
+          }
         });
         block.append(form);
+        const appliedCodes = discountCodes(cart);
+        if (appliedCodes.length) {
+          const applied = document.createElement('div');
+          applied.className = 'psc-cart-discount-applied';
+          const label = document.createElement('span');
+          label.textContent = `${appliedCodes.join(', ')} applied`;
+          const remove = button('Remove');
+          remove.addEventListener('click', async () => {
+            remove.disabled = true;
+            remove.textContent = 'Removing...';
+            try {
+              await updateDiscounts('');
+              await api.sync();
+              showNotice('Coupon removed.');
+            } catch (error) {
+              console.error('[pragma-site-cart] Unable to remove coupon', error);
+              showNotice('The coupon could not be removed. Please try again.', true);
+              remove.disabled = false;
+              remove.textContent = 'Remove';
+            }
+          });
+          applied.append(label, remove);
+          block.append(applied);
+        }
       }
       host.append(block);
     };
@@ -263,7 +327,7 @@
       if (host.hidden) return;
       renderRewards(cart);
       renderOneTick(cart);
-      renderDiscounts();
+      renderDiscounts(cart);
       renderOrderNotes(cart);
       renderSwaps(cart);
     };

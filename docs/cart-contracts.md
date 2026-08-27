@@ -38,6 +38,12 @@ Lifecycle events:
 
 Custom scripts receive `pragmaSiteCart` and `configuration` arguments.
 
+The Cart Features coupon form applies codes through the locale-aware Shopify Ajax Cart
+`cart/update.js` endpoint using its `discount` field. Applied codes are derived from cart-level and
+line-level discount applications, totals are refreshed through `pragmaSiteCart.sync()`, and posting
+an empty discount string removes all entered coupon codes. Checkout remains a normal `/checkout`
+navigation because Shopify owns discount validation and calculation.
+
 Embedded admin sidebar links use pathname routes (`/appearance`, `/features`, `/upsell`, and
 `/checkout`) because Shopify App Bridge navigation does not use URL fragments for destination
 matching. FastAPI serves the admin SPA index at each route.

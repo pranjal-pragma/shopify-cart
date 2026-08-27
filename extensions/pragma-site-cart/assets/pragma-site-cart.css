@@ -971,6 +971,35 @@
   padding: 8px 12px;
 }
 
+.psc-cart-feature--discount button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.psc-cart-discount-applied {
+  align-items: center;
+  background: color-mix(in srgb, var(--psc-cart-accent) 7%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--psc-cart-accent) 25%, #dedfe2);
+  border-radius: 6px;
+  color: #303137;
+  display: flex;
+  font-size: 10px;
+  font-weight: 700;
+  justify-content: space-between;
+  margin-top: 6px;
+  min-height: 34px;
+  padding: 5px 6px 5px 10px;
+}
+
+.psc-cart-feature--discount .psc-cart-discount-applied button {
+  background: transparent;
+  color: var(--psc-cart-accent);
+  font-size: 10px;
+  padding: 5px 7px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .psc-cart-feature--discount > strong,
 .psc-cart-feature--discount > span {
   display: block;
