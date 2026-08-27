@@ -52,14 +52,15 @@ the monetary fulfillment:
 - `free_gift` links to one configured free-gift offer. On save, the backend aligns that offer's
   eligibility condition with the tier goal. The generated gift variant and Discount Function make
   the selected gift genuinely free at checkout.
-- `discount` links to an active Shopify code discount with an `ORDER` or `PRODUCT` discount class.
-- `free_shipping` links to an active Shopify code discount with the `SHIPPING` class.
+- `discount` links to an active Shopify code or automatic discount with an `ORDER` or `PRODUCT`
+  discount class.
+- `free_shipping` links to an active Shopify code or automatic discount with the `SHIPPING` class.
 - `custom` is display-only and does not mutate the Shopify cart.
 
-Discount choices come from `GET /api/v1/shopify/discounts`, which reads active code discounts from
-Shopify Admin GraphQL. The storefront automatically reconciles unlocked tier codes through Shopify's
-Ajax Cart API. Configure the Shopify discount's own eligibility and minimums to agree with the tier;
-Shopify performs the final checkout validation.
+Discount choices come from `GET /api/v1/shopify/discounts`, which reads active code and automatic
+discounts from Shopify Admin GraphQL. The storefront reconciles unlocked code discounts through
+Shopify's Ajax Cart API; Shopify applies automatic discounts itself. Configure the Shopify discount's
+own eligibility and minimums to agree with the tier because Shopify performs final checkout validation.
 
 Each milestone uses a Lucide icon matching its reward type. Newly unlocked rewards trigger a
 drawer-wide confetti overlay once per page session; the overlay is decorative and ignores pointer

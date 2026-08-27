@@ -333,7 +333,7 @@ async def publish_cart_appearance(
         raise ShopifyUnavailableError from exc
 
 
-async def list_active_code_discounts(
+async def list_active_discounts(
     *,
     shop_domain: str,
     db: AsyncSession,
@@ -349,10 +349,10 @@ async def list_active_code_discounts(
             access_token=access_token,
             query="""
                 query ActiveCartRewardDiscounts {
-                  codeDiscountNodes(first: 100, query: "status:active") {
+                  discountNodes(first: 100, query: "status:active") {
                     nodes {
                       id
-                      codeDiscount {
+                      discount {
                         __typename
                         ... on DiscountCodeBasic {
                           title summary status discountClasses
@@ -370,6 +370,18 @@ async def list_active_code_discounts(
                           title status discountClasses
                           codes(first: 1) { nodes { code } }
                         }
+                        ... on DiscountAutomaticBasic {
+                          title summary status discountClasses
+                        }
+                        ... on DiscountAutomaticBxgy {
+                          title summary status discountClasses
+                        }
+                        ... on DiscountAutomaticFreeShipping {
+                          title summary status discountClasses
+                        }
+                        ... on DiscountAutomaticApp {
+                          title status discountClasses
+                        }
                       }
                     }
                   }
@@ -377,18 +389,22 @@ async def list_active_code_discounts(
             """,
             variables={},
         )
-        nodes = payload["data"]["codeDiscountNodes"]["nodes"]
+        nodes = payload["data"]["discountNodes"]["nodes"]
         options: list[ShopifyDiscountOption] = []
         for node in nodes:
-            discount = node.get("codeDiscount") or {}
+            discount = node.get("discount") or {}
             codes = (discount.get("codes") or {}).get("nodes") or []
-            if discount.get("status") != "ACTIVE" or not codes:
+            if discount.get("status") != "ACTIVE":
+                continue
+            automatic = "/DiscountAutomaticNode/" in node["id"]
+            if not automatic and not codes:
                 continue
             options.append(
                 ShopifyDiscountOption(
                     id=node["id"],
                     title=discount["title"],
-                    code=codes[0]["code"],
+                    code="" if automatic else codes[0]["code"],
+                    method="automatic" if automatic else "code",
                     summary=discount.get("summary") or "",
                     discount_classes=discount.get("discountClasses") or [],
                 )

@@ -9,7 +9,7 @@ from shopify_app.services.shopify import (
     GiftVariantSnapshot,
     archive_gift_product,
     free_gift_product_input,
-    list_active_code_discounts,
+    list_active_discounts,
     publish_gift_product,
     shopify_user_errors_indicate_missing,
     sync_free_gift_inventory,
@@ -89,20 +89,20 @@ def test_tiered_gift_reward_aligns_the_linked_offer_condition() -> None:
     assert offer.conditions[0].value == 4
 
 
-async def test_active_code_discounts_are_mapped_for_reward_selection(monkeypatch) -> None:
+async def test_active_discounts_are_mapped_for_reward_selection(monkeypatch) -> None:
     async def access_token(**kwargs: object) -> str:
         return "token"
 
     class FakeShopifyClient:
         async def graphql(self, **kwargs: object) -> dict[str, object]:
-            assert "codeDiscountNodes" in str(kwargs["query"])
+            assert "discountNodes" in str(kwargs["query"])
             return {
                 "data": {
-                    "codeDiscountNodes": {
+                    "discountNodes": {
                         "nodes": [
                             {
                                 "id": "gid://shopify/DiscountCodeNode/1",
-                                "codeDiscount": {
+                                "discount": {
                                     "title": "Free delivery",
                                     "summary": "Free standard delivery",
                                     "status": "ACTIVE",
@@ -111,8 +111,17 @@ async def test_active_code_discounts_are_mapped_for_reward_selection(monkeypatch
                                 },
                             },
                             {
-                                "id": "gid://shopify/DiscountCodeNode/2",
-                                "codeDiscount": {
+                                "id": "gid://shopify/DiscountAutomaticNode/2",
+                                "discount": {
+                                    "title": "Automatic delivery",
+                                    "summary": "Automatic free shipping",
+                                    "status": "ACTIVE",
+                                    "discountClasses": ["SHIPPING"],
+                                },
+                            },
+                            {
+                                "id": "gid://shopify/DiscountCodeNode/3",
+                                "discount": {
                                     "title": "Expired",
                                     "status": "EXPIRED",
                                     "discountClasses": ["ORDER"],
@@ -125,15 +134,16 @@ async def test_active_code_discounts_are_mapped_for_reward_selection(monkeypatch
             }
 
     monkeypatch.setattr("shopify_app.services.shopify.get_valid_access_token", access_token)
-    options = await list_active_code_discounts(
+    options = await list_active_discounts(
         shop_domain="example-shop.myshopify.com",
         db=object(),  # type: ignore[arg-type]
         client=FakeShopifyClient(),  # type: ignore[arg-type]
         cipher=object(),  # type: ignore[arg-type]
     )
 
-    assert [option.code for option in options] == ["SHIPFREE"]
-    assert options[0].discount_classes == ["SHIPPING"]
+    assert [option.code for option in options] == ["SHIPFREE", ""]
+    assert [option.method for option in options] == ["code", "automatic"]
+    assert all(option.discount_classes == ["SHIPPING"] for option in options)
 
 
 def test_shopify_graphql_errors_keep_the_upstream_message() -> None:

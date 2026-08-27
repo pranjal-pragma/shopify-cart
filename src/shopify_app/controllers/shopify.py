@@ -28,7 +28,7 @@ from shopify_app.services.shopify import (
     TokenExchangeRequiredError,
     exchange_session_token,
     get_merchant_identity,
-    list_active_code_discounts,
+    list_active_discounts,
     process_webhook,
     publish_cart_appearance,
     sync_free_gift_discounts,
@@ -177,7 +177,7 @@ async def discount_options(
 ) -> list[ShopifyDiscountOption]:
     _, shop_domain = auth
     try:
-        return await list_active_code_discounts(
+        return await list_active_discounts(
             shop_domain=shop_domain, db=db, client=client, cipher=cipher
         )
     except TokenExchangeRequiredError as exc:

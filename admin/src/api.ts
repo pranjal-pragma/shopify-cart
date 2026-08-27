@@ -161,6 +161,7 @@ export interface ShopifyDiscountOption {
   id: string;
   title: string;
   code: string;
+  method: 'code' | 'automatic';
   summary: string;
   discount_classes: Array<'ORDER' | 'PRODUCT' | 'SHIPPING'>;
 }

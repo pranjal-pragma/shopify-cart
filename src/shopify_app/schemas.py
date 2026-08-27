@@ -191,7 +191,8 @@ class TierReward(BaseModel):
     gift_offer_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
     gift_offer_title: str = Field(default="", max_length=40)
     discount_id: str | None = Field(
-        default=None, pattern=r"^gid://shopify/DiscountCodeNode/[0-9]+$"
+        default=None,
+        pattern=r"^gid://shopify/(DiscountCodeNode|DiscountAutomaticNode)/[0-9]+$",
     )
     discount_title: str = Field(default="", max_length=255)
     discount_code: str = Field(default="", max_length=255)
@@ -494,10 +495,10 @@ class CartFeaturesConfiguration(BaseModel):
         if linked_offer_ids and self.tiered_reward_condition == "cart_discount_price":
             raise ValueError("free gift rewards do not support cart discount price eligibility")
         for reward in self.tiered_rewards:
-            if reward.reward_type == "shipping" and reward.discount_code:
+            if reward.reward_type == "shipping" and reward.discount_id:
                 if "SHIPPING" not in reward.discount_classes:
                     raise ValueError("shipping rewards require a shipping discount")
-            if reward.reward_type == "discount" and reward.discount_code:
+            if reward.reward_type == "discount" and reward.discount_id:
                 if not {"ORDER", "PRODUCT"}.intersection(reward.discount_classes):
                     raise ValueError("discount rewards require an order or product discount")
         if self.one_tick_enabled:
@@ -533,9 +534,12 @@ class CartFeaturesResponse(CartFeaturesConfiguration):
 class ShopifyDiscountOption(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str = Field(pattern=r"^gid://shopify/DiscountCodeNode/[0-9]+$")
+    id: str = Field(
+        pattern=r"^gid://shopify/(DiscountCodeNode|DiscountAutomaticNode)/[0-9]+$"
+    )
     title: str = Field(min_length=1, max_length=255)
-    code: str = Field(min_length=1, max_length=255)
+    code: str = Field(default="", max_length=255)
+    method: Literal["code", "automatic"]
     summary: str = Field(default="", max_length=1000)
     discount_classes: list[Literal["ORDER", "PRODUCT", "SHIPPING"]]
 
