@@ -18,6 +18,7 @@ from shopify_app.schemas import (
     CartUpsellResponse,
     MerchantResponse,
     ShopConnectionResponse,
+    ShopifyDiscountOption,
 )
 from shopify_app.security import TokenCipher
 from shopify_app.services.shopify import (
@@ -27,6 +28,7 @@ from shopify_app.services.shopify import (
     TokenExchangeRequiredError,
     exchange_session_token,
     get_merchant_identity,
+    list_active_code_discounts,
     process_webhook,
     publish_cart_appearance,
     sync_free_gift_discounts,
@@ -119,6 +121,74 @@ def free_gift_configuration_changed(
         "free_gift_offers",
     )
     return any(getattr(previous, field) != getattr(current, field) for field in gift_fields)
+
+
+def align_tiered_gift_offers(
+    configuration: CartFeaturesConfiguration,
+) -> CartFeaturesConfiguration:
+    if not configuration.tiered_rewards_enabled:
+        return configuration
+    condition_type = (
+        configuration.tiered_reward_condition
+        if configuration.tiered_reward_condition in {"cart_subtotal", "cart_quantity"}
+        else "cart_subtotal"
+    )
+    goals = {
+        reward.gift_offer_id: reward.goal
+        for reward in configuration.tiered_rewards
+        if reward.reward_type == "free_gift" and reward.gift_offer_id
+    }
+    if not goals:
+        return configuration
+    offers = []
+    for offer in configuration.free_gift_offers:
+        goal = goals.get(offer.id)
+        if goal is None:
+            offers.append(offer)
+            continue
+        condition = offer.conditions[0].model_copy(
+            update={
+                "condition_type": condition_type,
+                "operator": "greater_than_or_equal",
+                "value": goal,
+                "applicable_on": "all",
+                "product_ids": [],
+                "product_titles": [],
+            }
+        )
+        offers.append(
+            offer.model_copy(
+                update={
+                    "eligibility_type": condition_type,
+                    "threshold": goal,
+                    "conditions": [condition],
+                }
+            )
+        )
+    return configuration.model_copy(update={"free_gift_offers": offers})
+
+
+async def discount_options(
+    *,
+    auth: tuple[str, str],
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> list[ShopifyDiscountOption]:
+    _, shop_domain = auth
+    try:
+        return await list_active_code_discounts(
+            shop_domain=shop_domain, db=db, client=client, cipher=cipher
+        )
+    except TokenExchangeRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
+        ) from exc
+    except ShopifyUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not load Shopify discounts",
+        ) from exc
 
 
 async def publish_and_store_cart_configuration(
@@ -225,6 +295,7 @@ async def save_cart_features(
     cipher: TokenCipher,
 ) -> CartFeaturesResponse:
     _, shop_domain = auth
+    configuration = align_tiered_gift_offers(configuration)
     existing = await db.get(CartAppearance, shop_domain)
     stored_discount_ids = (
         existing.configuration.get("_free_gift_discount_ids", {}) if existing else {}

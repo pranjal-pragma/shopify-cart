@@ -44,6 +44,27 @@ line-level discount applications, totals are refreshed through `pragmaSiteCart.s
 an empty discount string removes all entered coupon codes. Checkout remains a normal `/checkout`
 navigation because Shopify owns discount validation and calculation.
 
+## Tiered rewards
+
+Tiered reward rows are presentation and eligibility rules; Shopify remains the source of truth for
+the monetary fulfillment:
+
+- `free_gift` links to one configured free-gift offer. On save, the backend aligns that offer's
+  eligibility condition with the tier goal. The generated gift variant and Discount Function make
+  the selected gift genuinely free at checkout.
+- `discount` links to an active Shopify code discount with an `ORDER` or `PRODUCT` discount class.
+- `free_shipping` links to an active Shopify code discount with the `SHIPPING` class.
+- `custom` is display-only and does not mutate the Shopify cart.
+
+Discount choices come from `GET /api/v1/shopify/discounts`, which reads active code discounts from
+Shopify Admin GraphQL. The storefront automatically reconciles unlocked tier codes through Shopify's
+Ajax Cart API. Configure the Shopify discount's own eligibility and minimums to agree with the tier;
+Shopify performs the final checkout validation.
+
+Each milestone uses a Lucide icon matching its reward type. Newly unlocked rewards trigger a
+drawer-wide confetti overlay once per page session; the overlay is decorative and ignores pointer
+events.
+
 Embedded admin sidebar links use pathname routes (`/appearance`, `/features`, `/upsell`, and
 `/checkout`) because Shopify App Bridge navigation does not use URL fragments for destination
 matching. FastAPI serves the admin SPA index at each route.

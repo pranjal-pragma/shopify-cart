@@ -1,3 +1,11 @@
+import {
+  BadgePercent,
+  Gift,
+  Sparkles,
+  Truck,
+  createElement as createLucideElement,
+} from 'lucide';
+
 (() => {
   const initialize = (api) => {
     if (!api?.root || window.__pragmaSiteCartFeaturesLoaded) return;
@@ -19,6 +27,9 @@
     let noteTimer = null;
     const productCache = new Map();
     const celebratedRewards = new Set();
+    const manualDiscountCodes = new Set();
+    const rewardDiscountCodes = new Set();
+    let rewardDiscountMutationRunning = false;
 
     const isTruthy = (value) => value === true || ['true', '1', 'yes'].includes(String(value).toLowerCase());
     const numericId = (gid) => Number(String(gid || '').split('/').pop());
@@ -38,6 +49,21 @@
       const element = document.createElement('div');
       element.className = `psc-cart-feature ${className}`;
       return element;
+    };
+    const rewardIcon = (type) => {
+      const definition = type === 'shipping'
+        ? Truck
+        : type === 'free_gift'
+          ? Gift
+          : type === 'discount'
+            ? BadgePercent
+            : Sparkles;
+      const icon = createLucideElement(...definition);
+      icon.classList.add('psc-cart-reward-icon');
+      icon.setAttribute('width', '15');
+      icon.setAttribute('height', '15');
+      icon.setAttribute('aria-hidden', 'true');
+      return icon;
     };
     const addVariant = async (variantId, properties) => {
       const response = await nativeFetch(`${cartAddUrl}.js`, {
@@ -104,14 +130,22 @@
           apply.disabled = true;
           apply.textContent = 'Applying...';
           try {
-            const updatedCart = await updateDiscounts(code);
+            manualDiscountCodes.add(code);
+            const updatedCart = await updateDiscounts(
+              [...manualDiscountCodes, ...rewardDiscountCodes].join(','),
+            );
             const appliedCodes = discountCodes(updatedCart);
-            await api.sync();
-            if (!appliedCodes.some((value) => value.toLowerCase() === code.toLowerCase())) {
-              showNotice(`${code} is invalid or not eligible for this cart.`, true);
-            } else {
-              showNotice(`${code} applied.`);
+            const invalid = !appliedCodes.some(
+              (value) => value.toLowerCase() === code.toLowerCase(),
+            );
+            if (invalid) {
+              manualDiscountCodes.delete(code);
             }
+            await api.sync();
+            showNotice(
+              invalid ? `${code} is invalid or not eligible for this cart.` : `${code} applied.`,
+              invalid,
+            );
           } catch (error) {
             console.error('[pragma-site-cart] Unable to apply coupon', error);
             showNotice('The coupon could not be applied. Please try again.', true);
@@ -131,6 +165,8 @@
             remove.disabled = true;
             remove.textContent = 'Removing...';
             try {
+              manualDiscountCodes.clear();
+              rewardDiscountCodes.clear();
               await updateDiscounts('');
               await api.sync();
               showNotice('Coupon removed.');
@@ -207,6 +243,57 @@
       if (configuration.tiered_reward_condition === 'cart_discount_price') return (cart.total_price - Number(cart.total_discount || 0)) / 100;
       return (configuration.tiered_exclude_discounts ? Number(cart.items_subtotal_price || cart.total_price) : cart.total_price) / 100;
     };
+    const celebrateReward = (reward) => {
+      if (!configuration.tiered_confetti_enabled || celebratedRewards.has(reward.id)) return;
+      celebratedRewards.add(reward.id);
+      const confetti = document.createElement('div');
+      confetti.className = 'psc-cart-confetti';
+      confetti.setAttribute('aria-hidden', 'true');
+      const colors = [
+        configuration.tiered_primary_color || '#F10A0A',
+        '#F2B84B',
+        '#238457',
+        '#2D6CDF',
+        '#D94B82',
+      ];
+      for (let index = 0; index < 42; index += 1) {
+        const piece = document.createElement('i');
+        piece.style.setProperty('--psc-confetti-x', `${(index * 37) % 100}%`);
+        piece.style.setProperty('--psc-confetti-delay', `${(index % 9) * 35}ms`);
+        piece.style.setProperty('--psc-confetti-drift', `${-55 + (index * 29) % 110}px`);
+        piece.style.setProperty('--psc-confetti-turn', `${180 + (index * 47) % 420}deg`);
+        piece.style.backgroundColor = colors[index % colors.length];
+        piece.classList.toggle('is-round', index % 4 === 0);
+        confetti.append(piece);
+      }
+      drawer.append(confetti);
+      window.setTimeout(() => confetti.remove(), 2100);
+    };
+    const reconcileRewardDiscounts = async (completed) => {
+      if (rewardDiscountMutationRunning) return;
+      const desired = new Set(
+        completed
+          .filter((reward) => ['shipping', 'discount'].includes(reward.reward_type))
+          .map((reward) => String(reward.discount_code || '').trim())
+          .filter(Boolean),
+      );
+      const changed = desired.size !== rewardDiscountCodes.size
+        || [...desired].some((code) => !rewardDiscountCodes.has(code));
+      if (!changed) return;
+      rewardDiscountMutationRunning = true;
+      rewardDiscountCodes.clear();
+      desired.forEach((code) => rewardDiscountCodes.add(code));
+      try {
+        await updateDiscounts([...manualDiscountCodes, ...rewardDiscountCodes].join(','));
+        await api.sync();
+        if (desired.size) showNotice('Your unlocked cart reward was applied.');
+      } catch (error) {
+        console.error('[pragma-site-cart] Unable to apply tier reward discount', error);
+        showNotice('Your cart reward could not be applied. Please try again.', true);
+      } finally {
+        rewardDiscountMutationRunning = false;
+      }
+    };
     const renderRewards = (cart) => {
       if (!configuration.tiered_rewards_enabled || !configuration.tiered_rewards?.length) return;
       const rewards = [...configuration.tiered_rewards].sort((left, right) => left.goal - right.goal);
@@ -223,23 +310,20 @@
       progress.style.backgroundColor = configuration.tiered_primary_color || '#F10A0A';
       progress.style.width = `${Math.min(100, metric / target * 100)}%`;
       track.append(progress);
-      const milestones = document.createElement('small');
-      milestones.textContent = rewards.map((reward) => `${reward.reward_text}: ${reward.goal}`).join('  |  ');
+      const milestones = document.createElement('div');
+      milestones.className = 'psc-cart-reward-milestones';
+      rewards.forEach((reward) => {
+        const milestone = document.createElement('span');
+        milestone.classList.toggle('is-unlocked', metric >= reward.goal);
+        const copy = document.createElement('small');
+        copy.textContent = `${reward.reward_text} · ${reward.goal}`;
+        milestone.append(rewardIcon(reward.reward_type), copy);
+        milestones.append(milestone);
+      });
       block.append(message, track, milestones);
       host.append(block);
-      if (configuration.tiered_confetti_enabled && completed.length) {
-        const latest = completed.at(-1);
-        if (!celebratedRewards.has(latest.id)) {
-          celebratedRewards.add(latest.id);
-          block.classList.add('is-celebrating');
-          for (let index = 0; index < 8; index += 1) {
-            const piece = document.createElement('em');
-            piece.style.left = `${8 + index * 12}%`;
-            piece.style.backgroundColor = index % 2 ? configuration.tiered_primary_color : '#F2B84B';
-            block.append(piece);
-          }
-        }
-      }
+      if (completed.length) celebrateReward(completed.at(-1));
+      void reconcileRewardDiscounts(completed);
     };
 
     const renderOneTick = (cart) => {

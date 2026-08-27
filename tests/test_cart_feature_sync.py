@@ -1,11 +1,15 @@
 from datetime import UTC, datetime, timedelta
 
-from shopify_app.controllers.shopify import free_gift_configuration_changed
+from shopify_app.controllers.shopify import (
+    align_tiered_gift_offers,
+    free_gift_configuration_changed,
+)
 from shopify_app.schemas import CartFeaturesConfiguration
 from shopify_app.services.shopify import (
     GiftVariantSnapshot,
     archive_gift_product,
     free_gift_product_input,
+    list_active_code_discounts,
     publish_gift_product,
     shopify_user_errors_indicate_missing,
     sync_free_gift_inventory,
@@ -42,6 +46,94 @@ def test_free_gift_changes_trigger_shopify_sync() -> None:
     )
 
     assert free_gift_configuration_changed(previous, current) is True
+
+
+def test_tiered_gift_reward_aligns_the_linked_offer_condition() -> None:
+    starts_at = datetime.now(UTC)
+    configuration = CartFeaturesConfiguration.model_validate(
+        {
+            "free_gifts_enabled": True,
+            "free_gift_offers": [
+                {
+                    "id": "gift_offer",
+                    "title": "Choose a gift",
+                    "starts_at": starts_at.isoformat(),
+                    "ends_at": (starts_at + timedelta(days=7)).isoformat(),
+                    "variant_id": "gid://shopify/ProductVariant/123",
+                    "variant_title": "Gift / Default",
+                }
+            ],
+            "tiered_rewards_enabled": True,
+            "tiered_reward_condition": "cart_quantity",
+            "tiered_rewards": [
+                {
+                    "id": "gift_reward",
+                    "goal": 4,
+                    "reward_type": "free_gift",
+                    "reward_text": "Free gift",
+                    "before_text": "Add more to unlock a gift",
+                    "gift_offer_id": "gift_offer",
+                    "gift_offer_title": "Choose a gift",
+                }
+            ],
+        }
+    )
+
+    aligned = align_tiered_gift_offers(configuration)
+    offer = aligned.free_gift_offers[0]
+
+    assert offer.threshold == 4
+    assert offer.eligibility_type == "cart_quantity"
+    assert offer.conditions[0].condition_type == "cart_quantity"
+    assert offer.conditions[0].operator == "greater_than_or_equal"
+    assert offer.conditions[0].value == 4
+
+
+async def test_active_code_discounts_are_mapped_for_reward_selection(monkeypatch) -> None:
+    async def access_token(**kwargs: object) -> str:
+        return "token"
+
+    class FakeShopifyClient:
+        async def graphql(self, **kwargs: object) -> dict[str, object]:
+            assert "codeDiscountNodes" in str(kwargs["query"])
+            return {
+                "data": {
+                    "codeDiscountNodes": {
+                        "nodes": [
+                            {
+                                "id": "gid://shopify/DiscountCodeNode/1",
+                                "codeDiscount": {
+                                    "title": "Free delivery",
+                                    "summary": "Free standard delivery",
+                                    "status": "ACTIVE",
+                                    "discountClasses": ["SHIPPING"],
+                                    "codes": {"nodes": [{"code": "SHIPFREE"}]},
+                                },
+                            },
+                            {
+                                "id": "gid://shopify/DiscountCodeNode/2",
+                                "codeDiscount": {
+                                    "title": "Expired",
+                                    "status": "EXPIRED",
+                                    "discountClasses": ["ORDER"],
+                                    "codes": {"nodes": [{"code": "OLD"}]},
+                                },
+                            },
+                        ]
+                    }
+                }
+            }
+
+    monkeypatch.setattr("shopify_app.services.shopify.get_valid_access_token", access_token)
+    options = await list_active_code_discounts(
+        shop_domain="example-shop.myshopify.com",
+        db=object(),  # type: ignore[arg-type]
+        client=FakeShopifyClient(),  # type: ignore[arg-type]
+        cipher=object(),  # type: ignore[arg-type]
+    )
+
+    assert [option.code for option in options] == ["SHIPFREE"]
+    assert options[0].discount_classes == ["SHIPPING"]
 
 
 def test_shopify_graphql_errors_keep_the_upstream_message() -> None:

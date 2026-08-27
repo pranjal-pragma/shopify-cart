@@ -18,6 +18,7 @@ from shopify_app.schemas import (
     CartUpsellResponse,
     MerchantResponse,
     ShopConnectionResponse,
+    ShopifyDiscountOption,
 )
 from shopify_app.security import (
     AuthenticationError,
@@ -118,6 +119,18 @@ async def update_cart_features(
 ) -> CartFeaturesResponse:
     return await shopify_controller.save_cart_features(
         auth=auth, configuration=configuration, db=db, client=client, cipher=cipher
+    )
+
+
+@router.get("/discounts", response_model=list[ShopifyDiscountOption])
+async def discount_options(
+    auth: Annotated[tuple[str, str], Depends(authenticate_session_token)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    client: Annotated[ShopifyClient, Depends(get_shopify_client)],
+    cipher: Annotated[TokenCipher, Depends(get_token_cipher)],
+) -> list[ShopifyDiscountOption]:
+    return await shopify_controller.discount_options(
+        auth=auth, db=db, client=client, cipher=cipher
     )
 
 

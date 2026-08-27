@@ -4,7 +4,7 @@ application_url = __SHOPIFY_APP_URL__
 embedded = true
 
 [access_scopes]
-scopes = "read_products,write_products,read_inventory,write_inventory,read_publications,write_publications,write_discounts"
+scopes = "read_products,write_products,read_inventory,write_inventory,read_publications,write_publications,read_discounts,write_discounts"
 use_legacy_install_flow = false
 
 [discount.metafields.app.function-configuration]

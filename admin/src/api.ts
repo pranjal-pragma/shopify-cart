@@ -149,6 +149,20 @@ export interface TierReward {
   reward_type: 'shipping' | 'free_gift' | 'discount' | 'custom';
   reward_text: string;
   before_text: string;
+  gift_offer_id: string | null;
+  gift_offer_title: string;
+  discount_id: string | null;
+  discount_title: string;
+  discount_code: string;
+  discount_classes: Array<'ORDER' | 'PRODUCT' | 'SHIPPING'>;
+}
+
+export interface ShopifyDiscountOption {
+  id: string;
+  title: string;
+  code: string;
+  summary: string;
+  discount_classes: Array<'ORDER' | 'PRODUCT' | 'SHIPPING'>;
 }
 
 export interface ProductSwapRule {
@@ -335,6 +349,11 @@ export async function saveCartFeatures(
     }),
   );
   return response.json() as Promise<CartFeaturesResponse>;
+}
+
+export async function getShopifyDiscounts(): Promise<ShopifyDiscountOption[]> {
+  const response = await requireOk(await authenticatedFetch('/api/v1/shopify/discounts'));
+  return response.json() as Promise<ShopifyDiscountOption[]>;
 }
 
 export async function getCartUpsell(): Promise<CartUpsellResponse> {

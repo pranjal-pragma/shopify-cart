@@ -17,6 +17,7 @@ from shopify_app.schemas import (
     FreeGiftVariant,
     MerchantResponse,
     ShopConnectionResponse,
+    ShopifyDiscountOption,
 )
 from shopify_app.security import (
     AuthenticationError,
@@ -330,6 +331,71 @@ async def publish_cart_appearance(
             raise ShopifyUpstreamError("Shopify rejected the cart appearance metafield")
     except (KeyError, TypeError, ShopifyUpstreamError, httpx.HTTPError) as exc:
         raise ShopifyUnavailableError from exc
+
+
+async def list_active_code_discounts(
+    *,
+    shop_domain: str,
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> list[ShopifyDiscountOption]:
+    access_token = await get_valid_access_token(
+        shop_domain=shop_domain, db=db, client=client, cipher=cipher
+    )
+    try:
+        payload = await client.graphql(
+            shop_domain=shop_domain,
+            access_token=access_token,
+            query="""
+                query ActiveCartRewardDiscounts {
+                  codeDiscountNodes(first: 100, query: "status:active") {
+                    nodes {
+                      id
+                      codeDiscount {
+                        __typename
+                        ... on DiscountCodeBasic {
+                          title summary status discountClasses
+                          codes(first: 1) { nodes { code } }
+                        }
+                        ... on DiscountCodeBxgy {
+                          title summary status discountClasses
+                          codes(first: 1) { nodes { code } }
+                        }
+                        ... on DiscountCodeFreeShipping {
+                          title summary status discountClasses
+                          codes(first: 1) { nodes { code } }
+                        }
+                        ... on DiscountCodeApp {
+                          title status discountClasses
+                          codes(first: 1) { nodes { code } }
+                        }
+                      }
+                    }
+                  }
+                }
+            """,
+            variables={},
+        )
+        nodes = payload["data"]["codeDiscountNodes"]["nodes"]
+        options: list[ShopifyDiscountOption] = []
+        for node in nodes:
+            discount = node.get("codeDiscount") or {}
+            codes = (discount.get("codes") or {}).get("nodes") or []
+            if discount.get("status") != "ACTIVE" or not codes:
+                continue
+            options.append(
+                ShopifyDiscountOption(
+                    id=node["id"],
+                    title=discount["title"],
+                    code=codes[0]["code"],
+                    summary=discount.get("summary") or "",
+                    discount_classes=discount.get("discountClasses") or [],
+                )
+            )
+        return options
+    except (KeyError, TypeError, ValueError, ShopifyUpstreamError) as exc:
+        raise ShopifyUnavailableError("Shopify could not load active discounts") from exc
 
 
 def free_gift_function_configuration(offer: FreeGiftOffer) -> dict[str, Any]:

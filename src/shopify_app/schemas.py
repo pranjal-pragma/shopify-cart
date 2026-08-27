@@ -188,6 +188,16 @@ class TierReward(BaseModel):
     reward_type: Literal["shipping", "free_gift", "discount", "custom"] = "shipping"
     reward_text: str = Field(min_length=1, max_length=16)
     before_text: str = Field(min_length=1, max_length=160)
+    gift_offer_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    gift_offer_title: str = Field(default="", max_length=40)
+    discount_id: str | None = Field(
+        default=None, pattern=r"^gid://shopify/DiscountCodeNode/[0-9]+$"
+    )
+    discount_title: str = Field(default="", max_length=255)
+    discount_code: str = Field(default="", max_length=255)
+    discount_classes: list[Literal["ORDER", "PRODUCT", "SHIPPING"]] = Field(
+        default_factory=list, max_length=3
+    )
 
 
 class ProductSwapRule(BaseModel):
@@ -471,6 +481,25 @@ class CartFeaturesConfiguration(BaseModel):
             raise ValueError("add at least one free gift offer")
         if self.tiered_rewards_enabled and not self.tiered_rewards:
             raise ValueError("add at least one tiered reward")
+        offer_ids = {offer.id for offer in self.free_gift_offers}
+        linked_offer_ids = [
+            reward.gift_offer_id
+            for reward in self.tiered_rewards
+            if reward.reward_type == "free_gift" and reward.gift_offer_id
+        ]
+        if any(offer_id not in offer_ids for offer_id in linked_offer_ids):
+            raise ValueError("tiered reward references an unknown free gift offer")
+        if len(linked_offer_ids) != len(set(linked_offer_ids)):
+            raise ValueError("a free gift offer can belong to only one reward tier")
+        if linked_offer_ids and self.tiered_reward_condition == "cart_discount_price":
+            raise ValueError("free gift rewards do not support cart discount price eligibility")
+        for reward in self.tiered_rewards:
+            if reward.reward_type == "shipping" and reward.discount_code:
+                if "SHIPPING" not in reward.discount_classes:
+                    raise ValueError("shipping rewards require a shipping discount")
+            if reward.reward_type == "discount" and reward.discount_code:
+                if not {"ORDER", "PRODUCT"}.intersection(reward.discount_classes):
+                    raise ValueError("discount rewards require an order or product discount")
         if self.one_tick_enabled:
             if self.one_tick_variant_id is None:
                 raise ValueError("select a one-tick upsell variant")
@@ -499,6 +528,16 @@ class CartFeaturesConfiguration(BaseModel):
 
 class CartFeaturesResponse(CartFeaturesConfiguration):
     updated_at: str | None = None
+
+
+class ShopifyDiscountOption(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(pattern=r"^gid://shopify/DiscountCodeNode/[0-9]+$")
+    title: str = Field(min_length=1, max_length=255)
+    code: str = Field(min_length=1, max_length=255)
+    summary: str = Field(default="", max_length=1000)
+    discount_classes: list[Literal["ORDER", "PRODUCT", "SHIPPING"]]
 
 
 class UpsellRecommendation(BaseModel):

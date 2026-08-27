@@ -11,7 +11,7 @@ Use `.env.example` and `admin/.env.example` as templates. Never commit real cred
 
 The free-gift product and inventory synchronization requires these Shopify scopes:
 
-`read_products,write_products,read_inventory,write_inventory,read_publications,write_publications,write_discounts`
+`read_products,write_products,read_inventory,write_inventory,read_publications,write_publications,read_discounts,write_discounts`
 
 After adding or changing scopes, regenerate `shopify.app.toml`, restart `shopify app dev`, and
 approve the updated permissions for the development store.
