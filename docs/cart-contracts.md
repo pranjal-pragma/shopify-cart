@@ -104,7 +104,8 @@ When `free_gifts_copy_inventory` is enabled, saving synchronizes SKU, barcode, i
 inventory policy, and available quantities at the source variant's active locations. When it is
 disabled, the generated gift variant is untracked with blank SKU and barcode. Neither mode writes
 to the source product or source inventory item. Removing an offer or disabling free gifts archives
-its generated product.
+its generated product. Disabling Free Gifts preserves the offer configuration so a merchant can
+re-enable it later without rebuilding the campaign.
 
 Free-gift product and Discount Function synchronization runs only when `free_gifts_enabled`,
 `free_gifts_copy_inventory`, `free_gift_method`, or `free_gift_offers` changes. Saves to unrelated

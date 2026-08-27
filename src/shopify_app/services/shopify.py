@@ -435,10 +435,17 @@ def free_gift_product_input(
 def validated_shopify_result(
     payload: dict[str, Any], field: str, error_message: str
 ) -> dict[str, Any]:
+    top_level_errors = payload.get("errors")
+    if top_level_errors:
+        details = "; ".join(
+            str(error.get("message", error)) if isinstance(error, dict) else str(error)
+            for error in top_level_errors
+        )
+        raise ShopifyUpstreamError(f"{error_message}: {details}")
     try:
         result = payload["data"][field]
-        if payload.get("errors") or result["userErrors"]:
-            errors = payload.get("errors") or result["userErrors"]
+        if result["userErrors"]:
+            errors = result["userErrors"]
             details = "; ".join(
                 str(error.get("message", error)) if isinstance(error, dict) else str(error)
                 for error in errors
@@ -707,7 +714,7 @@ async def publish_gift_product(
                 id: $id,
                 input: [{publicationId: $publicationId}]
               ) {
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
         """,
@@ -860,10 +867,10 @@ async def sync_free_gift_inventory(
     except (KeyError, TypeError, ShopifyUpstreamError, httpx.HTTPError) as exc:
         raise ShopifyUnavailableError from exc
 
-    return (
-        configuration.model_copy(update={"free_gift_offers": synchronized_offers}),
-        synchronized_bindings,
+    offers = (
+        synchronized_offers if configuration.free_gifts_enabled else configuration.free_gift_offers
     )
+    return configuration.model_copy(update={"free_gift_offers": offers}), synchronized_bindings
 
 
 def free_gift_automatic_discount_input(offer: FreeGiftOffer) -> dict[str, Any]:
@@ -890,10 +897,17 @@ def free_gift_automatic_discount_input(offer: FreeGiftOffer) -> dict[str, Any]:
 
 
 def validated_discount_result(payload: dict[str, Any], field: str) -> dict[str, Any]:
+    top_level_errors = payload.get("errors")
+    if top_level_errors:
+        details = "; ".join(
+            str(error.get("message", error)) if isinstance(error, dict) else str(error)
+            for error in top_level_errors
+        )
+        raise ShopifyUpstreamError(f"Shopify rejected the free gift discount: {details}")
     try:
         result = payload["data"][field]
-        if payload.get("errors") or result["userErrors"]:
-            errors = payload.get("errors") or result["userErrors"]
+        if result["userErrors"]:
+            errors = result["userErrors"]
             details = "; ".join(
                 str(error.get("message", error)) if isinstance(error, dict) else str(error)
                 for error in errors
