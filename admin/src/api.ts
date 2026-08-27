@@ -207,10 +207,58 @@ export interface CartFeaturesResponse extends CartFeaturesConfiguration {
   updated_at: string | null;
 }
 
+export interface UpsellRecommendation {
+  variant_id: string;
+  variant_title: string;
+  product_id: string;
+  product_title: string;
+  product_handle: string;
+  image_url: string;
+  price: string;
+}
+
+export interface UpsellRule {
+  id: string;
+  title: RichTextStyle;
+  product_count: number;
+  background_color: string;
+  text_color: string;
+  applicable_on: 'all' | 'products' | 'collections';
+  trigger_ids: string[];
+  trigger_titles: string[];
+  trigger_product_ids: string[];
+  recommendations: UpsellRecommendation[];
+}
+
+export interface CartUpsellConfiguration {
+  upsell_enabled: boolean;
+  upsell_cap_quantity: boolean;
+  upsell_max_quantity: number;
+  upsell_variant_behavior: 'variant_popup' | 'product_popup';
+  upsell_ai_enabled: boolean;
+  upsell_ai_title: RichTextStyle;
+  upsell_ai_background_color: string;
+  upsell_ai_text_color: string;
+  upsell_ai_preference: 'related' | 'complementary';
+  upsell_ai_product_count: number;
+  upsell_rule_fallback_enabled: boolean;
+  upsell_rules: UpsellRule[];
+}
+
+export interface CartUpsellResponse extends CartUpsellConfiguration {
+  updated_at: string | null;
+}
+
 export interface ShopifyResource {
   id: string;
   title?: string;
   displayName?: string;
+  handle?: string;
+  price?: string;
+  image?: {originalSrc?: string; url?: string};
+  images?: Array<{originalSrc?: string; url?: string}>;
+  product?: ShopifyResource;
+  products?: ShopifyResource[];
   variants?: ShopifyResource[];
 }
 
@@ -287,4 +335,17 @@ export async function saveCartFeatures(
     }),
   );
   return response.json() as Promise<CartFeaturesResponse>;
+}
+
+export async function getCartUpsell(): Promise<CartUpsellResponse> {
+  const response = await requireOk(await authenticatedFetch('/api/v1/shopify/upsell'));
+  return response.json() as Promise<CartUpsellResponse>;
+}
+
+export async function saveCartUpsell(configuration: CartUpsellConfiguration): Promise<CartUpsellResponse> {
+  const response = await requireOk(await authenticatedFetch('/api/v1/shopify/upsell', {
+    method: 'PUT',
+    body: JSON.stringify(configuration),
+  }));
+  return response.json() as Promise<CartUpsellResponse>;
 }

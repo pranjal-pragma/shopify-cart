@@ -14,6 +14,8 @@ from shopify_app.schemas import (
     CartAppearanceResponse,
     CartFeaturesConfiguration,
     CartFeaturesResponse,
+    CartUpsellConfiguration,
+    CartUpsellResponse,
     MerchantResponse,
     ShopConnectionResponse,
 )
@@ -102,6 +104,10 @@ def default_cart_features() -> CartFeaturesConfiguration:
     return CartFeaturesConfiguration()
 
 
+def default_cart_upsell() -> CartUpsellConfiguration:
+    return CartUpsellConfiguration()
+
+
 async def publish_and_store_cart_configuration(
     *,
     shop_domain: str,
@@ -114,6 +120,7 @@ async def publish_and_store_cart_configuration(
     defaults = {
         **default_cart_appearance().model_dump(mode="json"),
         **default_cart_features().model_dump(mode="json"),
+        **default_cart_upsell().model_dump(mode="json"),
     }
     combined = {**defaults, **(appearance.configuration if appearance else {}), **section}
     try:
@@ -257,6 +264,41 @@ async def save_cart_features(
     )
     return CartFeaturesResponse(
         **synchronized_configuration.model_dump(), updated_at=appearance.updated_at.isoformat()
+    )
+
+
+async def get_cart_upsell(*, auth: tuple[str, str], db: AsyncSession) -> CartUpsellResponse:
+    _, shop_domain = auth
+    appearance = await db.get(CartAppearance, shop_domain)
+    if appearance is None:
+        return CartUpsellResponse(**default_cart_upsell().model_dump())
+    section = configuration_section(
+        appearance.configuration, set(CartUpsellConfiguration.model_fields)
+    )
+    return CartUpsellResponse(
+        **CartUpsellConfiguration.model_validate(section).model_dump(),
+        updated_at=appearance.updated_at.isoformat(),
+    )
+
+
+async def save_cart_upsell(
+    *,
+    auth: tuple[str, str],
+    configuration: CartUpsellConfiguration,
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> CartUpsellResponse:
+    _, shop_domain = auth
+    appearance = await publish_and_store_cart_configuration(
+        shop_domain=shop_domain,
+        section=configuration.model_dump(mode="json"),
+        db=db,
+        client=client,
+        cipher=cipher,
+    )
+    return CartUpsellResponse(
+        **configuration.model_dump(), updated_at=appearance.updated_at.isoformat()
     )
 
 

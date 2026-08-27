@@ -294,6 +294,75 @@ async def test_cart_features_validate_enabled_campaigns(
     assert invalid_one_tick.status_code == 422
 
 
+async def test_cart_upsell_persists_and_validates_rules(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    response = await client.get("/api/v1/shopify/upsell", headers=headers)
+    assert response.status_code == 200
+    upsell = response.json()
+    assert upsell["upsell_enabled"] is False
+    assert upsell["upsell_ai_preference"] == "complementary"
+    assert upsell["upsell_max_quantity"] == 1
+
+    upsell.pop("updated_at")
+    upsell.update(
+        {
+            "upsell_enabled": True,
+            "upsell_ai_enabled": False,
+            "upsell_rules": [
+                {
+                    "id": "snowboard_rule",
+                    "title": {"text": "Complete the set", "bold": True},
+                    "product_count": 3,
+                    "background_color": "#FFFFFF",
+                    "text_color": "#202124",
+                    "applicable_on": "products",
+                    "trigger_ids": ["gid://shopify/Product/100"],
+                    "trigger_titles": ["Snowboard"],
+                    "trigger_product_ids": [],
+                    "recommendations": [
+                        {
+                            "variant_id": "gid://shopify/ProductVariant/201",
+                            "variant_title": "Black",
+                            "product_id": "gid://shopify/Product/200",
+                            "product_title": "Snowboard bag",
+                            "product_handle": "snowboard-bag",
+                            "image_url": "",
+                            "price": "49.00",
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    saved = await client.put("/api/v1/shopify/upsell", headers=headers, json=upsell)
+    assert saved.status_code == 200
+    assert saved.json()["upsell_rules"][0]["title"]["text"] == "Complete the set"
+
+    reloaded = await client.get("/api/v1/shopify/upsell", headers=headers)
+    assert reloaded.json()["upsell_rules"][0]["recommendations"][0]["product_handle"] == (
+        "snowboard-bag"
+    )
+
+    upsell["upsell_rules"][0]["recommendations"] = []
+    invalid = await client.put("/api/v1/shopify/upsell", headers=headers, json=upsell)
+    assert invalid.status_code == 422
+
+
+async def test_cart_upsell_requires_an_enabled_recommendation_source(
+    client: httpx.AsyncClient, settings: Settings
+) -> None:
+    headers = {"Authorization": f"Bearer {make_session_token(settings)}"}
+    upsell = (await client.get("/api/v1/shopify/upsell", headers=headers)).json()
+    upsell.pop("updated_at")
+    upsell["upsell_enabled"] = True
+    upsell["upsell_ai_enabled"] = False
+
+    response = await client.put("/api/v1/shopify/upsell", headers=headers, json=upsell)
+    assert response.status_code == 422
+
+
 async def test_free_gift_offer_conditions_persist(
     client: httpx.AsyncClient, settings: Settings
 ) -> None:

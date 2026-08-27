@@ -70,3 +70,10 @@ Its cart-line attribute query must match the marker written by the theme extensi
   publications, and discounts.
 - Shopify Ajax Cart endpoints provide live storefront cart state and mutations.
 - Shopify CLI tunnels the local embedded app and bundles extensions during development.
+## Cart upsells
+
+Cart upsells use a dedicated configuration section stored in the shared `CartAppearance` JSON and
+published with the same app-data metafield as appearance and features. The admin reads and writes
+that section through `/api/v1/shopify/upsell`. The theme extension recalculates recommendations on
+every `pragma-site-cart:cart:rendered` event, queries Shopify's Ajax recommendation endpoint for AI
+mode, and uses matching configured rules as the fallback.

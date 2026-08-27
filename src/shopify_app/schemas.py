@@ -501,5 +501,87 @@ class CartFeaturesResponse(CartFeaturesConfiguration):
     updated_at: str | None = None
 
 
+class UpsellRecommendation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    variant_id: str = Field(pattern=r"^gid://shopify/ProductVariant/[0-9]+$")
+    variant_title: str = Field(min_length=1, max_length=200)
+    product_id: str = Field(pattern=r"^gid://shopify/Product/[0-9]+$")
+    product_title: str = Field(min_length=1, max_length=200)
+    product_handle: str = Field(default="", max_length=255)
+    image_url: str = Field(default="", max_length=2048)
+    price: str = Field(default="", max_length=32)
+
+
+class UpsellRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    title: RichTextStyle = Field(
+        default_factory=lambda: RichTextStyle(text="You may also like", font_size=16, bold=True)
+    )
+    product_count: int = Field(default=4, ge=1, le=10)
+    background_color: HexColor = "#FFFFFF"
+    text_color: HexColor = "#202124"
+    applicable_on: Literal["all", "products", "collections"] = "all"
+    trigger_ids: list[str] = Field(default_factory=list, max_length=50)
+    trigger_titles: list[str] = Field(default_factory=list, max_length=50)
+    trigger_product_ids: list[str] = Field(default_factory=list, max_length=250)
+    recommendations: list[UpsellRecommendation] = Field(
+        default_factory=list, max_length=20
+    )
+
+    @model_validator(mode="after")
+    def validate_rule(self) -> UpsellRule:
+        if not self.title.text.strip():
+            raise ValueError("upsell rule title cannot be empty")
+        if len(self.trigger_ids) != len(self.trigger_titles):
+            raise ValueError("upsell trigger identifiers and titles must align")
+        if self.applicable_on != "all" and not self.trigger_ids:
+            raise ValueError("select at least one upsell trigger")
+        if not self.recommendations:
+            raise ValueError("select at least one recommended product")
+        variant_ids = [item.variant_id for item in self.recommendations]
+        if len(variant_ids) != len(set(variant_ids)):
+            raise ValueError("recommended variants must be unique within a rule")
+        return self
+
+
+class CartUpsellConfiguration(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    upsell_enabled: bool = False
+    upsell_cap_quantity: bool = True
+    upsell_max_quantity: int = Field(default=1, ge=1, le=99)
+    upsell_variant_behavior: Literal["variant_popup", "product_popup"] = "variant_popup"
+    upsell_ai_enabled: bool = True
+    upsell_ai_title: RichTextStyle = Field(
+        default_factory=lambda: RichTextStyle(text="Recommended for you", font_size=16, bold=True)
+    )
+    upsell_ai_background_color: HexColor = "#FFFFFF"
+    upsell_ai_text_color: HexColor = "#202124"
+    upsell_ai_preference: Literal["related", "complementary"] = "complementary"
+    upsell_ai_product_count: int = Field(default=6, ge=1, le=10)
+    upsell_rule_fallback_enabled: bool = False
+    upsell_rules: list[UpsellRule] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def validate_upsells(self) -> CartUpsellConfiguration:
+        if not self.upsell_ai_title.text.strip():
+            raise ValueError("AI upsell title cannot be empty")
+        ids = [rule.id for rule in self.upsell_rules]
+        if len(ids) != len(set(ids)):
+            raise ValueError("upsell rule identifiers must be unique")
+        if self.upsell_enabled and not self.upsell_ai_enabled and not self.upsell_rules:
+            raise ValueError("enable AI recommendations or add an upsell rule")
+        if self.upsell_rule_fallback_enabled and not self.upsell_rules:
+            raise ValueError("add an upsell rule before enabling rule-based fallback")
+        return self
+
+
+class CartUpsellResponse(CartUpsellConfiguration):
+    updated_at: str | None = None
+
+
 class CartAppearanceResponse(CartAppearanceConfiguration):
     updated_at: str | None = None

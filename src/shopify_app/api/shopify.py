@@ -14,6 +14,8 @@ from shopify_app.schemas import (
     CartAppearanceResponse,
     CartFeaturesConfiguration,
     CartFeaturesResponse,
+    CartUpsellConfiguration,
+    CartUpsellResponse,
     MerchantResponse,
     ShopConnectionResponse,
 )
@@ -115,6 +117,27 @@ async def update_cart_features(
     cipher: Annotated[TokenCipher, Depends(get_token_cipher)],
 ) -> CartFeaturesResponse:
     return await shopify_controller.save_cart_features(
+        auth=auth, configuration=configuration, db=db, client=client, cipher=cipher
+    )
+
+
+@router.get("/upsell", response_model=CartUpsellResponse)
+async def cart_upsell(
+    auth: Annotated[tuple[str, str], Depends(authenticate_session_token)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CartUpsellResponse:
+    return await shopify_controller.get_cart_upsell(auth=auth, db=db)
+
+
+@router.put("/upsell", response_model=CartUpsellResponse)
+async def update_cart_upsell(
+    configuration: CartUpsellConfiguration,
+    auth: Annotated[tuple[str, str], Depends(authenticate_session_token)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    client: Annotated[ShopifyClient, Depends(get_shopify_client)],
+    cipher: Annotated[TokenCipher, Depends(get_token_cipher)],
+) -> CartUpsellResponse:
+    return await shopify_controller.save_cart_upsell(
         auth=auth, configuration=configuration, db=db, client=client, cipher=cipher
     )
 

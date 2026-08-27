@@ -18,6 +18,7 @@ and Shopify Discount Function. Change them together.
 - `pragma-site-cart-scarcity.js`: urgency and sales countdown timers.
 - `pragma-site-cart-features.js`: notes, rewards, add-ons, discounts, and swaps.
 - `pragma-site-cart-gifts.js`: gift eligibility and cart mutations.
+- `pragma-site-cart-upsell.js`: AI and rule-based recommendation rendering and cart mutations.
 - `pragma-site-cart.css`: all storefront drawer styling.
 
 ## Browser API and events
@@ -61,6 +62,17 @@ Private Shopify line-item properties use the `_pragma_site_cart_*` namespace:
 - `_pragma_site_cart_one_tick`
 - `_pragma_site_cart_upsell`
 - `_pragma_site_cart_swap`
+
+The upsell API is isolated at `/api/v1/shopify/upsell`. Shopify's Product Recommendations Ajax
+endpoint supplies AI results. Rule-based recommendations store the selected product variant,
+product identity, handle, image, and price so the theme can render and add the line. Product rules
+match cart product GIDs directly. Collection rules use the product IDs returned with the Shopify
+resource-picker selection; keep those snapshots current when collection membership changes.
+
+`upsell_variant_behavior=variant_popup` opens option selection when a recommendation has multiple
+available variants. `product_popup` always opens a details dialog. Added lines carry
+`_pragma_site_cart_upsell=true`, and `upsell_cap_quantity` limits quantities added through the
+recommendation UI without changing the catalog or inventory.
 
 The Discount Function queries `_pragma_site_cart_free_gift_offer`. A mismatch between the query
 and the theme property causes gifts to retain their normal checkout price.

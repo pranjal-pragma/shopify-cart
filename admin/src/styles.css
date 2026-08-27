@@ -2450,3 +2450,12 @@ p {
     animation: none;
   }
 }
+.resource-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.resource-chips > span { align-items: center; background: #eef5f1; border: 1px solid #c6ddd1; border-radius: 6px; display: inline-flex; font-size: 13px; gap: 6px; padding: 6px 8px; }
+.resource-chips button { background: none; border: 0; cursor: pointer; display: inline-flex; padding: 0; }
+.upsell-preview { border: 1px solid #dfe3e8; border-radius: 7px; padding: 14px; pointer-events: none; }
+.upsell-preview > div { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
+.upsell-preview article { background: #fff; border: 1px solid #e2e4e7; border-radius: 6px; color: #202124; display: grid; gap: 5px; padding: 8px; }
+.upsell-preview__image { background: #d8e5df; border-radius: 4px; display: block; height: 72px; }
+.upsell-preview article b, .upsell-preview article small { font-size: 11px; }
+.upsell-preview article button { background: #202124; border: 0; border-radius: 4px; color: #fff; font-size: 11px; padding: 7px; }
