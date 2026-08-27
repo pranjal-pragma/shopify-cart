@@ -78,6 +78,11 @@ detection covers `/cart` links, Dawn cart-icon markers, common `data-*` cart tri
 extend trigger and drawer detection with `custom_cart_icon_selectors` and
 `custom_cart_drawer_selectors`.
 
+When the terms checkbox is enabled but unchecked, the drawer removes the checkout link's `href` and
+blocks pointer and keyboard activation during event capture. Once the shopper accepts the terms, the
+original checkout URL is restored. This prevents theme-level click handlers and normal anchor
+navigation from bypassing the configured requirement.
+
 ## DOM and CSS namespace
 
 - Root marker: `data-pragma-site-cart-root`

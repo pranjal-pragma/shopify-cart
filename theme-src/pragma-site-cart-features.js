@@ -38,6 +38,32 @@ import {
       notice.hidden = !message;
       notice.classList.toggle('psc-cart-notice--error', error);
     };
+    const checkout = root.querySelector('.psc-cart-checkout-button');
+    const termsCheckbox = root.querySelector('[data-psc-terms-checkbox]');
+    const checkoutHref = checkout?.getAttribute('href') || `${routesRoot}checkout`;
+    const termsAreAccepted = () => configuration.terms_checkbox_enabled !== true || termsCheckbox?.checked === true;
+    const updateTermsCheckoutGuard = () => {
+      if (!checkout) return;
+      const blocked = !termsAreAccepted();
+      checkout.classList.toggle('psc-cart-checkout-button--disabled', blocked);
+      checkout.setAttribute('aria-disabled', String(blocked));
+      if (blocked) checkout.removeAttribute('href');
+      else checkout.setAttribute('href', checkoutHref);
+    };
+    const blockCheckoutWithoutTerms = (event) => {
+      if (termsAreAccepted()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      showNotice('Accept the Terms & Conditions to continue.', true);
+    };
+    checkout?.addEventListener('click', blockCheckoutWithoutTerms, {capture: true});
+    checkout?.addEventListener('keydown', (event) => {
+      if (!['Enter', ' '].includes(event.key)) return;
+      blockCheckoutWithoutTerms(event);
+    }, {capture: true});
+    termsCheckbox?.addEventListener('change', updateTermsCheckoutGuard);
+    updateTermsCheckoutGuard();
     const button = (label, className = '') => {
       const element = document.createElement('button');
       element.type = 'button';
@@ -58,7 +84,7 @@ import {
           : type === 'discount'
             ? BadgePercent
             : Sparkles;
-      const icon = createLucideElement(...definition);
+      const icon = createLucideElement(definition);
       icon.classList.add('psc-cart-reward-icon');
       icon.setAttribute('width', '15');
       icon.setAttribute('height', '15');
