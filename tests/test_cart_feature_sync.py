@@ -4,8 +4,10 @@ from shopify_app.controllers.shopify import free_gift_configuration_changed
 from shopify_app.schemas import CartFeaturesConfiguration
 from shopify_app.services.shopify import (
     GiftVariantSnapshot,
+    archive_gift_product,
     free_gift_product_input,
     publish_gift_product,
+    shopify_user_errors_indicate_missing,
     sync_free_gift_inventory,
     validated_shopify_result,
 )
@@ -70,6 +72,43 @@ async def test_gift_publication_requests_supported_user_error_fields() -> None:
         publication_id="gid://shopify/Publication/1",
         client=FakeShopifyClient(),  # type: ignore[arg-type]
     )
+
+
+async def test_gift_archive_requests_supported_user_error_fields() -> None:
+    class FakeShopifyClient:
+        async def graphql(self, **kwargs: object) -> dict[str, object]:
+            query = str(kwargs["query"])
+            assert "userErrors { field message }" in query
+            assert "userErrors { field message code }" not in query
+            return {
+                "data": {
+                    "productUpdate": {
+                        "product": {"id": "gid://shopify/Product/1"},
+                        "userErrors": [],
+                    }
+                }
+            }
+
+    await archive_gift_product(
+        shop_domain="example-shop.myshopify.com",
+        access_token="token",
+        product_id="gid://shopify/Product/1",
+        client=FakeShopifyClient(),  # type: ignore[arg-type]
+    )
+
+
+def test_missing_shopify_resource_is_safe_for_cleanup_retry() -> None:
+    payload = {
+        "data": {
+            "discountAutomaticDelete": {
+                "deletedAutomaticDiscountId": None,
+                "userErrors": [{"field": ["id"], "message": "Automatic discount does not exist."}],
+            }
+        }
+    }
+
+    assert shopify_user_errors_indicate_missing(payload, "discountAutomaticDelete") is True
+    assert shopify_user_errors_indicate_missing(payload, "productUpdate") is False
 
 
 async def test_disabling_free_gifts_preserves_offer_configuration() -> None:

@@ -482,6 +482,21 @@ def validated_shopify_result(
         raise ShopifyUpstreamError(error_message) from exc
 
 
+def shopify_user_errors_indicate_missing(payload: dict[str, Any], field: str) -> bool:
+    try:
+        errors = payload["data"][field]["userErrors"]
+    except (KeyError, TypeError):
+        return False
+    if not errors:
+        return False
+    missing_phrases = ("does not exist", "not found")
+    return all(
+        isinstance(error, dict)
+        and any(phrase in str(error.get("message", "")).lower() for phrase in missing_phrases)
+        for error in errors
+    )
+
+
 async def fetch_gift_product_state(
     *,
     shop_domain: str,
@@ -774,13 +789,16 @@ async def archive_gift_product(
             mutation ArchiveGiftProduct($product: ProductUpdateInput!) {
               productUpdate(product: $product) {
                 product { id }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
         """,
         variables={"product": {"id": product_id, "status": "ARCHIVED"}},
     )
-    validated_shopify_result(payload, "productUpdate", "Shopify could not archive the gift product")
+    if not shopify_user_errors_indicate_missing(payload, "productUpdate"):
+        validated_shopify_result(
+            payload, "productUpdate", "Shopify could not archive the gift product"
+        )
 
 
 def valid_gift_product_bindings(value: object) -> dict[str, dict[str, str]]:
@@ -993,7 +1011,8 @@ async def sync_free_gift_discounts(
                 """,
                 variables={"id": discount_id},
             )
-            validated_discount_result(payload, "discountAutomaticDelete")
+            if not shopify_user_errors_indicate_missing(payload, "discountAutomaticDelete"):
+                validated_discount_result(payload, "discountAutomaticDelete")
 
         for offer_id, offer in desired_offers.items():
             automatic_discount = free_gift_automatic_discount_input(offer)

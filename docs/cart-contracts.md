@@ -115,6 +115,11 @@ disabled, the generated gift variant is untracked with blank SKU and barcode. Ne
 to the source product or source inventory item. Removing an offer or disabling free gifts archives
 its generated product. Disabling Free Gifts preserves the offer configuration so a merchant can
 re-enable it later without rebuilding the campaign.
+Gift-product archive mutations request only the portable `field` and `message` user-error fields;
+`ProductUpdatePayload.userErrors` does not expose `code` in the configured Shopify API version.
+Product archiving and automatic-discount deletion are idempotent cleanup operations: Shopify
+`does not exist` and `not found` responses are treated as already cleaned, allowing a disable save
+to recover after a partially completed request.
 
 Free-gift product and Discount Function synchronization runs only when `free_gifts_enabled`,
 `free_gifts_copy_inventory`, `free_gift_method`, or `free_gift_offers` changes. Saves to unrelated
