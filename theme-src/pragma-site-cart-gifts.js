@@ -5,7 +5,8 @@
     const {root, configuration} = api;
     if (!configuration.free_gifts_enabled) return;
 
-    const drawer = root.querySelector('[data-psc-drawer]');
+    const content = root.querySelector('[data-psc-content]');
+    const items = root.querySelector('[data-psc-items]');
     const notice = root.querySelector('[data-psc-notice]');
     const routesRoot = window.Shopify?.routes?.root || '/';
     const cartAddUrl = root.dataset.cartAddUrl || `${routesRoot}cart/add`;
@@ -13,8 +14,9 @@
     const nativeFetch = window.fetch.bind(window);
     const host = document.createElement('div');
     host.className = 'psc-cart-feature psc-cart-feature--gifts';
+    host.setAttribute('aria-label', 'Free gift selection');
     host.hidden = true;
-    drawer.insertBefore(host, drawer.querySelector('.psc-cart-features') || root.querySelector('[data-psc-footer]'));
+    content.insertBefore(host, items);
     const handledOffers = new Set();
     let mutationRunning = false;
 
@@ -76,22 +78,42 @@
       );
       host.hidden = configuration.free_gift_method !== 'choice' || !offers.length;
       if (host.hidden) return;
+      const header = document.createElement('div');
+      header.className = 'psc-cart-gift-header';
+      const badge = document.createElement('span');
+      badge.textContent = 'Free gift';
       const title = document.createElement('strong');
       title.textContent = 'Choose your free gift';
-      host.append(title);
+      const helper = document.createElement('small');
+      helper.textContent = 'Select one option to add to your order.';
+      header.append(badge, title, helper);
+      host.append(header);
       offers.forEach((offer) => {
         const group = document.createElement('div');
         group.className = 'psc-cart-gift-options';
         const offerTitle = document.createElement('span');
+        offerTitle.className = 'psc-cart-gift-offer-title';
         offerTitle.textContent = offer.title;
         group.append(offerTitle);
         giftOptions(offer).forEach((gift) => {
           const action = document.createElement('button');
           action.type = 'button';
           const giftTitle = gift.source_variant_title || gift.variant_title;
-          action.textContent = selected.get(offer.id) === numericId(gift.variant_id)
-            ? `${giftTitle} added`
-            : `${giftTitle} · Qty ${offer.quantity || 1}`;
+          const isSelected = selected.get(offer.id) === numericId(gift.variant_id);
+          const copy = document.createElement('span');
+          copy.className = 'psc-cart-gift-option__copy';
+          const optionTitle = document.createElement('strong');
+          optionTitle.textContent = giftTitle;
+          const quantity = document.createElement('small');
+          quantity.textContent = `Quantity ${offer.quantity || 1}`;
+          const state = document.createElement('span');
+          state.className = 'psc-cart-gift-option__state';
+          state.textContent = isSelected ? 'Added' : 'Select';
+          copy.append(optionTitle, quantity);
+          action.append(copy, state);
+          action.className = 'psc-cart-gift-option';
+          action.classList.toggle('is-selected', isSelected);
+          action.setAttribute('aria-pressed', String(isSelected));
           action.disabled = selected.has(offer.id);
           action.addEventListener('click', async () => {
             group.querySelectorAll('button').forEach((button) => { button.disabled = true; });

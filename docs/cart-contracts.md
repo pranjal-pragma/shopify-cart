@@ -104,6 +104,11 @@ products.
 options but permits only one selected gift line per offer. The Discount Function receives every
 allowed generated variant ID and discounts at most one matching marked line.
 
+The choice-mode gift selector is inserted inside `.psc-cart-content` immediately before
+`[data-psc-items]`, so it scrolls with and always precedes the product lines. Its option rows use
+the `.psc-cart-gift-option` namespace and expose their selected state through `aria-pressed` and
+the `is-selected` class.
+
 When `free_gifts_copy_inventory` is enabled, saving synchronizes SKU, barcode, inventory tracking,
 inventory policy, and available quantities at the source variant's active locations. When it is
 disabled, the generated gift variant is untracked with blank SKU and barcode. Neither mode writes
