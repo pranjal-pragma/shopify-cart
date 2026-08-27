@@ -3,6 +3,8 @@ from datetime import UTC, datetime, timedelta
 from shopify_app.controllers.shopify import free_gift_configuration_changed
 from shopify_app.schemas import CartFeaturesConfiguration
 from shopify_app.services.shopify import (
+    GiftVariantSnapshot,
+    free_gift_product_input,
     publish_gift_product,
     sync_free_gift_inventory,
     validated_shopify_result,
@@ -105,3 +107,58 @@ async def test_disabling_free_gifts_preserves_offer_configuration() -> None:
     assert synchronized.free_gift_offers == configuration.free_gift_offers
     assert synchronized.free_gift_offers[0].re_add_each_time is False
     assert bindings == {}
+
+
+def test_generated_gift_uses_source_product_identity_and_image() -> None:
+    starts_at = datetime.now(UTC)
+    offer = CartFeaturesConfiguration.model_validate(
+        {
+            "free_gifts_enabled": True,
+            "free_gift_offers": [
+                {
+                    "id": "gift_offer",
+                    "title": "Choose a gift",
+                    "starts_at": starts_at.isoformat(),
+                    "ends_at": (starts_at + timedelta(days=7)).isoformat(),
+                    "variant_id": "gid://shopify/ProductVariant/123",
+                    "variant_title": "Selling Plans Ski Wax / Sample",
+                }
+            ],
+        }
+    ).free_gift_offers[0]
+    gift_variant = offer.gift_variants[0]
+    source = GiftVariantSnapshot(
+        variant_id=gift_variant.source_variant_id,
+        title="Sample",
+        price="10.00",
+        sku="WAX-SAMPLE",
+        barcode="",
+        tracked=False,
+        inventory_policy="DENY",
+        taxable=True,
+        inventory_item_id="gid://shopify/InventoryItem/1",
+        inventory_levels=(),
+        product_title="Selling Plans Ski Wax",
+        image_url="https://cdn.shopify.com/s/files/ski-wax.jpg",
+        image_alt="Yellow ski wax",
+    )
+
+    product = free_gift_product_input(
+        offer=offer,
+        gift_variant=gift_variant,
+        source=source,
+        target_variant_id=None,
+        copy_inventory=False,
+    )
+
+    assert product["title"] == "Selling Plans Ski Wax"
+    assert product["productType"] == "pragma-site-cart gift"
+    assert product["productOptions"][0]["values"] == [{"name": "Sample"}]
+    assert product["files"] == [
+        {
+            "originalSource": source.image_url,
+            "alt": source.image_alt,
+            "contentType": "IMAGE",
+        }
+    ]
+    assert product["variants"][0]["file"] == product["files"][0]

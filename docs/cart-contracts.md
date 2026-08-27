@@ -95,6 +95,10 @@ The primary generated product uses `pragma-site-cart-gift-{offer_id}`; additiona
 `pragma-site-cart-gift-{offer_id}-{gift_option_id}`. Products have type `pragma-site-cart gift`, are
 `UNLISTED`, and are published to Online Store so Shopify Ajax Cart can add them. Hidden persisted
 configuration `_free_gift_product_bindings` maps offer-option keys to generated IDs for cleanup.
+The generated product copies the source product's customer-facing title, variant title, and image;
+the technical gift identity remains only in its handle, product type, tags, and private cart-line
+properties. Re-saving a gift configuration repairs these display fields on existing generated
+products.
 
 `free_gift_method=auto` adds the first configured option. `free_gift_method=choice` renders all
 options but permits only one selected gift line per offer. The Discount Function receives every

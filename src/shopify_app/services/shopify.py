@@ -82,6 +82,9 @@ class GiftVariantSnapshot:
     taxable: bool
     inventory_item_id: str
     inventory_levels: tuple[GiftInventoryLevel, ...]
+    product_title: str = ""
+    image_url: str = ""
+    image_alt: str = ""
 
 
 @dataclass(frozen=True)
@@ -377,9 +380,14 @@ def parse_inventory_levels(inventory_item: dict[str, Any]) -> tuple[GiftInventor
 
 def parse_gift_variant(variant: dict[str, Any]) -> GiftVariantSnapshot:
     inventory_item = variant["inventoryItem"]
+    product = variant.get("product") or {}
+    variant_image = variant.get("image") or {}
+    featured_media = product.get("featuredMedia") or {}
+    featured_image = featured_media.get("image") or {}
+    product_title = str(product.get("title") or "")
     return GiftVariantSnapshot(
         variant_id=variant["id"],
-        title=variant["displayName"],
+        title=str(variant.get("title") or variant["displayName"]),
         price=str(variant["price"]),
         sku=inventory_item.get("sku") or "",
         barcode=variant.get("barcode") or "",
@@ -388,6 +396,11 @@ def parse_gift_variant(variant: dict[str, Any]) -> GiftVariantSnapshot:
         taxable=bool(variant.get("taxable", True)),
         inventory_item_id=inventory_item["id"],
         inventory_levels=parse_inventory_levels(inventory_item),
+        product_title=product_title,
+        image_url=str(variant_image.get("url") or featured_image.get("url") or ""),
+        image_alt=str(
+            variant_image.get("altText") or featured_media.get("alt") or product_title or ""
+        ),
     )
 
 
@@ -399,8 +412,9 @@ def free_gift_product_input(
     target_variant_id: str | None,
     copy_inventory: bool,
 ) -> dict[str, Any]:
+    variant_title = source.title or "Default Title"
     variant: dict[str, Any] = {
-        "optionValues": [{"optionName": "Title", "name": "Gift"}],
+        "optionValues": [{"optionName": "Title", "name": variant_title}],
         "price": source.price,
         "sku": source.sku if copy_inventory else "",
         "barcode": source.barcode if copy_inventory else "",
@@ -421,15 +435,27 @@ def free_gift_product_input(
             }
             for level in source.inventory_levels
         ]
-    return {
-        "title": f"pragma-site-cart gift - {gift_variant.source_variant_title}",
+    image: dict[str, Any] | None = None
+    if source.image_url:
+        image = {
+            "originalSource": source.image_url,
+            "alt": source.image_alt or source.product_title or variant_title,
+            "contentType": "IMAGE",
+        }
+        variant["file"] = image
+
+    product: dict[str, Any] = {
+        "title": source.product_title or gift_variant.source_variant_title,
         "handle": free_gift_product_handle(offer.id, gift_variant.id),
         "status": "UNLISTED",
         "productType": "pragma-site-cart gift",
         "tags": ["pragma-site-cart", "free-gift"],
-        "productOptions": [{"name": "Title", "position": 1, "values": [{"name": "Gift"}]}],
+        "productOptions": [{"name": "Title", "position": 1, "values": [{"name": variant_title}]}],
         "variants": [variant],
     }
+    if image:
+        product["files"] = [image]
+    return product
 
 
 def validated_shopify_result(
@@ -471,11 +497,20 @@ async def fetch_gift_product_state(
             query GiftInventorySource($sourceVariantId: ID!, $handle: String!) {
               source: productVariant(id: $sourceVariantId) {
                 id
+                title
                 displayName
                 barcode
                 price
                 inventoryPolicy
                 taxable
+                image { url altText }
+                product {
+                  title
+                  featuredMedia {
+                    alt
+                    ... on MediaImage { image { url } }
+                  }
+                }
                 inventoryItem {
                   id
                   sku
