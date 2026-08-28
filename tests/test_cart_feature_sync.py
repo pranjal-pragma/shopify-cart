@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from shopify_app.controllers.shopify import (
     align_tiered_gift_offers,
     free_gift_configuration_changed,
+    validated_cart_features_section,
 )
 from shopify_app.schemas import CartFeaturesConfiguration
 from shopify_app.services.shopify import (
@@ -23,6 +24,15 @@ def test_regular_feature_changes_do_not_trigger_free_gift_sync() -> None:
     current = previous.model_copy(update={"order_notes_title": "Delivery instructions"})
 
     assert free_gift_configuration_changed(previous, current) is False
+
+
+def test_legacy_tier_scope_without_resources_migrates_to_all_products() -> None:
+    configuration = validated_cart_features_section(
+        {"tiered_applicable_on": "collections"}
+    )
+
+    assert configuration.tiered_applicable_on == "all"
+    assert configuration.tiered_applicable_ids == []
 
 
 def test_free_gift_changes_trigger_shopify_sync() -> None:
@@ -65,6 +75,10 @@ def test_tiered_gift_reward_aligns_the_linked_offer_condition() -> None:
             ],
             "tiered_rewards_enabled": True,
             "tiered_reward_condition": "cart_quantity",
+            "tiered_applicable_on": "products",
+            "tiered_applicable_ids": ["gid://shopify/Product/456"],
+            "tiered_applicable_titles": ["Snowboard"],
+            "tiered_applicable_product_ids": [["gid://shopify/Product/456"]],
             "tiered_rewards": [
                 {
                     "id": "gift_reward",
@@ -87,6 +101,8 @@ def test_tiered_gift_reward_aligns_the_linked_offer_condition() -> None:
     assert offer.conditions[0].condition_type == "cart_quantity"
     assert offer.conditions[0].operator == "greater_than_or_equal"
     assert offer.conditions[0].value == 4
+    assert offer.conditions[0].applicable_on == "products"
+    assert offer.conditions[0].product_ids == ["gid://shopify/Product/456"]
 
 
 async def test_active_discounts_are_mapped_for_reward_selection(monkeypatch) -> None:

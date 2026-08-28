@@ -255,13 +255,19 @@ async def test_cart_features_persist_and_survive_appearance_saves(
     assert features["discount_mode"] == "discount_box"
     assert features["order_notes_enabled"] is True
     assert features["free_gift_offers"] == []
+    assert features["tiered_applicable_ids"] == []
 
     features.pop("updated_at")
     features["discount_mode"] = "hide"
     features["order_notes_title"] = "Delivery instructions"
+    features["tiered_applicable_on"] = "products"
+    features["tiered_applicable_ids"] = ["gid://shopify/Product/100"]
+    features["tiered_applicable_titles"] = ["Snowboard"]
+    features["tiered_applicable_product_ids"] = [["gid://shopify/Product/100"]]
     saved_features = await client.put("/api/v1/shopify/features", headers=headers, json=features)
     assert saved_features.status_code == 200
     assert saved_features.json()["order_notes_title"] == "Delivery instructions"
+    assert saved_features.json()["tiered_applicable_titles"] == ["Snowboard"]
 
     appearance = (await client.get("/api/v1/shopify/appearance", headers=headers)).json()
     appearance.pop("updated_at")
@@ -275,6 +281,9 @@ async def test_cart_features_persist_and_survive_appearance_saves(
     assert reloaded.status_code == 200
     assert reloaded.json()["discount_mode"] == "hide"
     assert reloaded.json()["order_notes_title"] == "Delivery instructions"
+    assert reloaded.json()["tiered_applicable_product_ids"] == [
+        ["gid://shopify/Product/100"]
+    ]
 
 
 async def test_cart_features_validate_enabled_campaigns(

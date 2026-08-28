@@ -106,6 +106,21 @@ def default_cart_features() -> CartFeaturesConfiguration:
     return CartFeaturesConfiguration()
 
 
+def validated_cart_features_section(configuration: dict[str, object]) -> CartFeaturesConfiguration:
+    section = configuration_section(configuration, set(CartFeaturesConfiguration.model_fields))
+    if section.get("tiered_applicable_on") != "all" and not section.get(
+        "tiered_applicable_ids"
+    ):
+        section = {
+            **section,
+            "tiered_applicable_on": "all",
+            "tiered_applicable_ids": [],
+            "tiered_applicable_titles": [],
+            "tiered_applicable_product_ids": [],
+        }
+    return CartFeaturesConfiguration.model_validate(section)
+
+
 def default_cart_upsell() -> CartUpsellConfiguration:
     return CartUpsellConfiguration()
 
@@ -140,6 +155,18 @@ def align_tiered_gift_offers(
     }
     if not goals:
         return configuration
+    scoped_product_ids = []
+    if configuration.tiered_applicable_on == "products":
+        scoped_product_ids = configuration.tiered_applicable_ids
+    elif configuration.tiered_applicable_on == "collections":
+        scoped_product_ids = list(
+            dict.fromkeys(
+                product_id
+                for product_ids in configuration.tiered_applicable_product_ids
+                for product_id in product_ids
+            )
+        )
+    scoped_product_ids = scoped_product_ids[:250]
     offers = []
     for offer in configuration.free_gift_offers:
         goal = goals.get(offer.id)
@@ -151,9 +178,9 @@ def align_tiered_gift_offers(
                 "condition_type": condition_type,
                 "operator": "greater_than_or_equal",
                 "value": goal,
-                "applicable_on": "all",
-                "product_ids": [],
-                "product_titles": [],
+                "applicable_on": "products" if scoped_product_ids else "all",
+                "product_ids": scoped_product_ids,
+                "product_titles": scoped_product_ids,
             }
         )
         offers.append(
@@ -277,11 +304,8 @@ async def get_cart_features(*, auth: tuple[str, str], db: AsyncSession) -> CartF
     appearance = await db.get(CartAppearance, shop_domain)
     if appearance is None:
         return CartFeaturesResponse(**default_cart_features().model_dump())
-    section = configuration_section(
-        appearance.configuration, set(CartFeaturesConfiguration.model_fields)
-    )
     return CartFeaturesResponse(
-        **CartFeaturesConfiguration.model_validate(section).model_dump(),
+        **validated_cart_features_section(appearance.configuration).model_dump(),
         updated_at=appearance.updated_at.isoformat(),
     )
 
@@ -309,11 +333,7 @@ async def save_cart_features(
     ):
         stored_discount_ids = {}
     previous_configuration = (
-        CartFeaturesConfiguration.model_validate(
-            configuration_section(
-                existing.configuration, set(CartFeaturesConfiguration.model_fields)
-            )
-        )
+        validated_cart_features_section(existing.configuration)
         if existing
         else default_cart_features()
     )

@@ -202,6 +202,9 @@ export interface CartFeaturesConfiguration {
   tiered_secondary_color: string;
   tiered_confetti_enabled: boolean;
   tiered_applicable_on: 'products' | 'collections' | 'all';
+  tiered_applicable_ids: string[];
+  tiered_applicable_titles: string[];
+  tiered_applicable_product_ids: string[][];
   tiered_exclude_discounts: boolean;
   tiered_completion_text: string;
   one_tick_enabled: boolean;

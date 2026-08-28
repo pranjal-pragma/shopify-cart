@@ -106,6 +106,11 @@ product identity, handle, image, and price so the theme can render and add the l
 match cart product GIDs directly. Collection rules use the product IDs returned with the Shopify
 resource-picker selection; keep those snapshots current when collection membership changes.
 
+Tiered reward product and collection scopes follow the same snapshot contract. The configuration
+stores selected resource IDs and titles plus one product-ID snapshot per resource. The storefront
+counts only matching cart lines toward scoped reward goals; reselect a collection after changing
+its membership so the published snapshot stays current.
+
 `upsell_variant_behavior=variant_popup` opens option selection when a recommendation has multiple
 available variants. `product_popup` always opens a details dialog. Added lines carry
 `_pragma_site_cart_upsell=true`, and `upsell_cap_quantity` limits quantities added through the

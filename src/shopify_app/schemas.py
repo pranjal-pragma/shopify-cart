@@ -86,8 +86,8 @@ class FreeGiftCondition(BaseModel):
     operator: Literal["greater_than", "greater_than_or_equal", "equal_to"] = "greater_than"
     value: float = Field(default=1, ge=0, le=10_000_000)
     applicable_on: Literal["all", "products"] = "all"
-    product_ids: list[str] = Field(default_factory=list, max_length=50)
-    product_titles: list[str] = Field(default_factory=list, max_length=50)
+    product_ids: list[str] = Field(default_factory=list, max_length=250)
+    product_titles: list[str] = Field(default_factory=list, max_length=250)
 
     @model_validator(mode="after")
     def validate_products(self) -> FreeGiftCondition:
@@ -453,6 +453,9 @@ class CartFeaturesConfiguration(BaseModel):
     tiered_secondary_color: HexColor = "#E5E7EB"
     tiered_confetti_enabled: bool = True
     tiered_applicable_on: Literal["products", "collections", "all"] = "all"
+    tiered_applicable_ids: list[str] = Field(default_factory=list, max_length=50)
+    tiered_applicable_titles: list[str] = Field(default_factory=list, max_length=50)
+    tiered_applicable_product_ids: list[list[str]] = Field(default_factory=list, max_length=50)
     tiered_exclude_discounts: bool = False
     tiered_completion_text: str = Field(
         default="All rewards unlocked", min_length=1, max_length=160
@@ -482,6 +485,16 @@ class CartFeaturesConfiguration(BaseModel):
             raise ValueError("add at least one free gift offer")
         if self.tiered_rewards_enabled and not self.tiered_rewards:
             raise ValueError("add at least one tiered reward")
+        tier_scope_lengths = {
+            len(self.tiered_applicable_ids),
+            len(self.tiered_applicable_titles),
+            len(self.tiered_applicable_product_ids),
+        }
+        if len(tier_scope_lengths) != 1:
+            raise ValueError("tiered reward resource identifiers, titles, and products must align")
+        if self.tiered_rewards_enabled and self.tiered_applicable_on != "all":
+            if not self.tiered_applicable_ids:
+                raise ValueError("select at least one tiered reward resource")
         offer_ids = {offer.id for offer in self.free_gift_offers}
         linked_offer_ids = [
             reward.gift_offer_id
