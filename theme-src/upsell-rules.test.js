@@ -6,6 +6,7 @@ import {
   matchingUpsellRule,
   regularCartItems,
   ruleRecommendations,
+  upsellDialogMode,
   upsellLimitReached,
   upsellVariantQuantity,
 } from './upsell-rules.js';
@@ -143,4 +144,14 @@ test('quantity caps count every cart line for the recommended variant', () => {
     upsell_cap_quantity: false,
     upsell_max_quantity: 1,
   }), false);
+});
+
+test('variant selection opens a chooser only when alternatives are available', () => {
+  assert.equal(upsellDialogMode('variant_popup', 3), 'variant');
+  assert.equal(upsellDialogMode('variant_popup', 1), null);
+});
+
+test('product details always opens the product modal', () => {
+  assert.equal(upsellDialogMode('product_popup', 1), 'product');
+  assert.equal(upsellDialogMode('product_popup', 4), 'product');
 });

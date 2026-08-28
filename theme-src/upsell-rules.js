@@ -48,3 +48,9 @@ export const upsellLimitReached = (cart, variantId, configuration = {}) => (
   configuration.upsell_cap_quantity === true
   && upsellVariantQuantity(cart, variantId) >= Math.max(1, Number(configuration.upsell_max_quantity || 1))
 );
+
+export const upsellDialogMode = (behavior, availableVariantCount) => {
+  if (behavior === 'product_popup') return 'product';
+  if (behavior === 'variant_popup' && Number(availableVariantCount) > 1) return 'variant';
+  return null;
+};

@@ -3,6 +3,7 @@ import {
   matchingUpsellRule,
   regularCartItems,
   ruleRecommendations,
+  upsellDialogMode,
   upsellLimitReached,
   upsellVariantQuantity,
 } from './upsell-rules.js';
@@ -146,7 +147,8 @@ import {
           add.title = `${upsellVariantQuantity(cart, numericId(item.variant_id))} already added`;
         }
         add.addEventListener('click', async () => {
-          if (configuration.upsell_variant_behavior === 'product_popup' || item.variants.filter((variant) => variant.available).length > 1) {openProduct(item, cart, configuration.upsell_variant_behavior === 'variant_popup'); return;}
+          const dialogMode = upsellDialogMode(configuration.upsell_variant_behavior, item.variants.filter((variant) => variant.available).length);
+          if (dialogMode) {openProduct(item, cart, dialogMode === 'variant'); return;}
           add.disabled = true; try {await addVariant(numericId(item.variant_id), cart);} catch (error) {showNotice(error.message, true); add.disabled = false;}
         });
         const details = document.createElement('span'); details.className = 'psc-cart-upsell-card__details'; details.append(name, variant);

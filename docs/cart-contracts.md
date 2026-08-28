@@ -29,6 +29,10 @@ product is already present in the cart, and then apply the rule's product limit.
 evaluated in their configured order before the first all-products fallback rule. Legacy picker
 records titled `Product` derive their display title from the saved variant title.
 
+`upsell_variant_behavior=variant_popup` opens the variant chooser only when the recommendation has
+more than one available variant; a single available variant is added directly.
+`upsell_variant_behavior=product_popup` always opens the product-details modal before adding.
+
 ## Browser API and events
 
 The public API is available as `window.pragmaSiteCart` after initialization. It exposes the root,
