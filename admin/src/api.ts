@@ -315,10 +315,29 @@ async function requireOk(response: Response): Promise<Response> {
   throw new Error(body?.detail ?? `Request failed (${response.status})`);
 }
 
+const merchantCacheKey = 'pragma-site-cart:merchant';
+
+function cachedMerchant(): Merchant | null {
+  try {
+    const value = window.sessionStorage.getItem(merchantCacheKey);
+    if (!value) return null;
+    const merchant = JSON.parse(value) as Merchant;
+    if (!merchant.shop_domain || merchant.connected !== true) return null;
+    return merchant;
+  } catch {
+    window.sessionStorage.removeItem(merchantCacheKey);
+    return null;
+  }
+}
+
 export async function connectMerchant(): Promise<Merchant> {
+  const cached = cachedMerchant();
+  if (cached) return cached;
   await requireOk(await authenticatedFetch('/api/v1/shopify/token-exchange', {method: 'POST'}));
   const response = await requireOk(await authenticatedFetch('/api/v1/shopify/me'));
-  return response.json() as Promise<Merchant>;
+  const merchant = await response.json() as Merchant;
+  window.sessionStorage.setItem(merchantCacheKey, JSON.stringify(merchant));
+  return merchant;
 }
 
 export async function getCartAppearance(): Promise<CartAppearanceResponse> {
