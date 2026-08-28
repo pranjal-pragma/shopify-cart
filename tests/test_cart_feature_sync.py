@@ -1,5 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
+from pydantic import ValidationError
+
 from shopify_app.controllers.shopify import (
     align_tiered_gift_offers,
     free_gift_configuration_changed,
@@ -33,6 +36,55 @@ def test_legacy_tier_scope_without_resources_migrates_to_all_products() -> None:
 
     assert configuration.tiered_applicable_on == "all"
     assert configuration.tiered_applicable_ids == []
+
+
+def test_legacy_sku_upsell_without_rules_migrates_to_disabled() -> None:
+    configuration = validated_cart_features_section({"one_tick_sku_enabled": True})
+
+    assert configuration.one_tick_sku_enabled is False
+    assert configuration.one_tick_sku_rules == []
+
+
+def test_sku_upsell_rule_accepts_targeted_product_snapshots() -> None:
+    configuration = CartFeaturesConfiguration.model_validate(
+        {
+            "one_tick_sku_enabled": True,
+            "one_tick_sku_rules": [
+                {
+                    "id": "wax_add_on",
+                    "text": {"text": "Add ski wax"},
+                    "variant_id": "gid://shopify/ProductVariant/123",
+                    "variant_title": "Ski wax / Default",
+                    "applicable_on": "products",
+                    "trigger_ids": ["gid://shopify/Product/456"],
+                    "trigger_titles": ["Snowboard"],
+                    "trigger_product_ids": [["gid://shopify/Product/456"]],
+                }
+            ],
+        }
+    )
+
+    assert configuration.one_tick_sku_rules[0].trigger_product_ids == [
+        ["gid://shopify/Product/456"]
+    ]
+
+
+def test_targeted_sku_upsell_requires_a_selected_resource() -> None:
+    with pytest.raises(ValidationError, match="select at least one product or collection"):
+        CartFeaturesConfiguration.model_validate(
+            {
+                "one_tick_sku_enabled": True,
+                "one_tick_sku_rules": [
+                    {
+                        "id": "wax_add_on",
+                        "text": {"text": "Add ski wax"},
+                        "variant_id": "gid://shopify/ProductVariant/123",
+                        "variant_title": "Ski wax / Default",
+                        "applicable_on": "products",
+                    }
+                ],
+            }
+        )
 
 
 def test_free_gift_changes_trigger_shopify_sync() -> None:

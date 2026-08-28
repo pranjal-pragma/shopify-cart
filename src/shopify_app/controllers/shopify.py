@@ -118,6 +118,8 @@ def validated_cart_features_section(configuration: dict[str, object]) -> CartFea
             "tiered_applicable_titles": [],
             "tiered_applicable_product_ids": [],
         }
+    if section.get("one_tick_sku_enabled") and not section.get("one_tick_sku_rules"):
+        section = {**section, "one_tick_sku_enabled": False}
     return CartFeaturesConfiguration.model_validate(section)
 
 

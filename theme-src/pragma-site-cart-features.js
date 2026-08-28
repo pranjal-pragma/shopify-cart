@@ -7,6 +7,7 @@ import {
 } from 'lucide';
 
 import {rewardMetric} from './reward-metric.js';
+import {isOneTickItem, oneTickSkuRuleState} from './one-tick-rules.js';
 
 (() => {
   const initialize = (api) => {
@@ -32,6 +33,7 @@ import {rewardMetric} from './reward-metric.js';
     const manualDiscountCodes = new Set();
     const rewardDiscountCodes = new Set();
     let rewardDiscountMutationRunning = false;
+    let oneTickSyncRunning = false;
 
     const isTruthy = (value) => value === true || ['true', '1', 'yes'].includes(String(value).toLowerCase());
     const numericId = (gid) => Number(String(gid || '').split('/').pop());
@@ -93,24 +95,25 @@ import {rewardMetric} from './reward-metric.js';
       icon.setAttribute('aria-hidden', 'true');
       return icon;
     };
-    const addVariant = async (variantId, properties) => {
+    const addVariant = async (variantId, properties, quantity = 1) => {
       const response = await nativeFetch(`${cartAddUrl}.js`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
         credentials: 'same-origin',
-        body: JSON.stringify({items: [{id: numericId(variantId), quantity: 1, properties}]}),
+        body: JSON.stringify({items: [{id: numericId(variantId), quantity, properties}]}),
       });
       if (!response.ok) throw new Error(`Cart add failed (${response.status})`);
     };
-    const removeLine = async (item, line) => {
+    const changeLine = async (item, line, quantity) => {
       const response = await nativeFetch(`${cartChangeUrl}.js`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
         credentials: 'same-origin',
-        body: JSON.stringify({id: item.key || line, quantity: 0}),
+        body: JSON.stringify({id: item.key || line, quantity}),
       });
       if (!response.ok) throw new Error(`Cart change failed (${response.status})`);
     };
+    const removeLine = (item, line) => changeLine(item, line, 0);
     const discountCodes = (cart) => {
       const applications = [
         ...(cart.cart_level_discount_applications || []),
@@ -349,24 +352,22 @@ import {rewardMetric} from './reward-metric.js';
       void reconcileRewardDiscounts(completed);
     };
 
-    const renderOneTick = (cart) => {
-      if (!configuration.one_tick_enabled || !configuration.one_tick_variant_id) return;
-      const existing = cart.items.map((item, index) => ({item, line: index + 1})).find(({item}) => isTruthy(item.properties?._pragma_site_cart_one_tick));
+    const oneTickAction = ({existing, text, title, onAdd}) => {
       const block = section('psc-cart-feature--one-tick');
       const action = button('', 'psc-cart-one-tick');
       action.setAttribute('role', 'checkbox');
       action.setAttribute('aria-checked', String(Boolean(existing)));
       const check = document.createElement('i');
       const copy = document.createElement('span');
-      copy.textContent = configuration.one_tick_text?.text || 'Add cart add-on';
+      copy.textContent = text || 'Add cart add-on';
       const product = document.createElement('small');
-      product.textContent = configuration.one_tick_variant_title || 'Selected add-on';
+      product.textContent = title || 'Selected add-on';
       action.append(check, copy, product);
       action.addEventListener('click', async () => {
         action.disabled = true;
         try {
           if (existing) await removeLine(existing.item, existing.line);
-          else await addVariant(configuration.one_tick_variant_id, {_pragma_site_cart_one_tick: 'true'});
+          else await onAdd();
           await api.sync();
         } catch (error) {
           console.error('[pragma-site-cart] Unable to update one-tick add-on', error);
@@ -377,6 +378,84 @@ import {rewardMetric} from './reward-metric.js';
       });
       block.append(action);
       host.append(block);
+    };
+    const renderOneTick = (cart) => {
+      if (configuration.one_tick_enabled && configuration.one_tick_variant_id) {
+        const existing = cart.items.map((item, index) => ({item, line: index + 1})).find(
+          ({item}) => isOneTickItem(item) && !item.properties?._pragma_site_cart_one_tick_rule,
+        );
+        oneTickAction({
+          existing,
+          text: configuration.one_tick_text?.text,
+          title: configuration.one_tick_variant_title,
+          onAdd: () => addVariant(
+            configuration.one_tick_variant_id,
+            {_pragma_site_cart_one_tick: 'true'},
+          ),
+        });
+      }
+      if (!configuration.one_tick_sku_enabled) return;
+      (configuration.one_tick_sku_rules || []).forEach((rule) => {
+        const state = oneTickSkuRuleState(cart, rule);
+        if (!state.parentItems.length) return;
+        const existing = state.addOnItems[0];
+        oneTickAction({
+          existing,
+          text: rule.text?.text,
+          title: rule.variant_title,
+          onAdd: () => addVariant(
+            rule.variant_id,
+            {
+              _pragma_site_cart_one_tick: 'true',
+              _pragma_site_cart_one_tick_rule: rule.id,
+            },
+            configuration.one_tick_match_parent_quantity
+              ? Math.max(1, state.desiredQuantity)
+              : 1,
+          ),
+        });
+      });
+    };
+    const reconcileSkuOneTick = async (cart) => {
+      if (!configuration.one_tick_sku_enabled || oneTickSyncRunning) return;
+      const rules = configuration.one_tick_sku_rules || [];
+      const ruleIds = new Set(rules.map((rule) => rule.id));
+      const changes = [];
+      rules.forEach((rule) => {
+        const state = oneTickSkuRuleState(cart, rule);
+        state.addOnItems.forEach(({item, line}, index) => {
+          if (index > 0) {
+            changes.push(() => removeLine(item, line));
+            return;
+          }
+          if (!state.parentItems.length && configuration.one_tick_remove_with_parent) {
+            changes.push(() => removeLine(item, line));
+            return;
+          }
+          if (
+            state.parentItems.length
+            && configuration.one_tick_match_parent_quantity
+            && Number(item.quantity || 0) !== state.desiredQuantity
+          ) changes.push(() => changeLine(item, line, state.desiredQuantity));
+        });
+      });
+      if (configuration.one_tick_remove_with_parent) {
+        cart.items.forEach((item, index) => {
+          const ruleId = String(item.properties?._pragma_site_cart_one_tick_rule || '');
+          if (ruleId && !ruleIds.has(ruleId)) changes.push(() => removeLine(item, index + 1));
+        });
+      }
+      if (!changes.length) return;
+      oneTickSyncRunning = true;
+      try {
+        for (const change of changes) await change();
+        await api.sync();
+      } catch (error) {
+        console.error('[pragma-site-cart] Unable to synchronize SKU one-tick add-ons', error);
+        showNotice('The targeted add-on could not be synchronized.', true);
+      } finally {
+        oneTickSyncRunning = false;
+      }
     };
 
     const loadProduct = (handle) => {
@@ -434,6 +513,7 @@ import {rewardMetric} from './reward-metric.js';
       if (host.hidden) return;
       renderRewards(cart);
       renderOneTick(cart);
+      void reconcileSkuOneTick(cart);
       renderDiscounts(cart);
       renderOrderNotes(cart);
       renderSwaps(cart);

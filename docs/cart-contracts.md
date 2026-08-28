@@ -102,8 +102,20 @@ Private Shopify line-item properties use the `_pragma_site_cart_*` namespace:
 - `_pragma_site_cart_free_gift`
 - `_pragma_site_cart_free_gift_offer`
 - `_pragma_site_cart_one_tick`
+- `_pragma_site_cart_one_tick_rule`
 - `_pragma_site_cart_upsell`
 - `_pragma_site_cart_swap`
+
+Cart-level one-tick add-ons carry `_pragma_site_cart_one_tick=true` without a rule marker.
+SKU/product-level add-ons also carry `_pragma_site_cart_one_tick_rule={rule_id}`. The storefront
+uses that stable ID to associate an add-on with its matching parent products, remove it after the
+last parent is removed when `one_tick_remove_with_parent` is enabled, and align its quantity with
+the total matching parent quantity when `one_tick_match_parent_quantity` is enabled.
+
+SKU one-tick product and collection scopes store selected resource IDs and titles plus one
+product-ID snapshot per selected resource. Collection membership is therefore evaluated from the
+snapshot published by the admin resource picker; reselect a collection after changing its products.
+One-tick and free-gift lines are never counted as matching parent products.
 
 The upsell API is isolated at `/api/v1/shopify/upsell`. Shopify's Product Recommendations Ajax
 endpoint supplies AI results. Rule-based recommendations store the selected product variant,

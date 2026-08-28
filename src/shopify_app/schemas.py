@@ -201,6 +201,32 @@ class TierReward(BaseModel):
     )
 
 
+class OneTickSkuRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    text: RichTextStyle
+    variant_id: str = Field(pattern=r"^gid://shopify/ProductVariant/[0-9]+$")
+    variant_title: str = Field(min_length=1, max_length=200)
+    applicable_on: Literal["all", "products", "collections"] = "all"
+    trigger_ids: list[str] = Field(default_factory=list, max_length=50)
+    trigger_titles: list[str] = Field(default_factory=list, max_length=50)
+    trigger_product_ids: list[list[str]] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> OneTickSkuRule:
+        lengths = {
+            len(self.trigger_ids),
+            len(self.trigger_titles),
+            len(self.trigger_product_ids),
+        }
+        if len(lengths) != 1:
+            raise ValueError("one-tick rule resource identifiers, titles, and products must align")
+        if self.applicable_on != "all" and not self.trigger_ids:
+            raise ValueError("select at least one product or collection for the one-tick rule")
+        return self
+
+
 class ProductSwapRule(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -469,6 +495,9 @@ class CartFeaturesConfiguration(BaseModel):
     )
     one_tick_variant_title: str = Field(default="", max_length=200)
     one_tick_sku_enabled: bool = False
+    one_tick_sku_rules: list[OneTickSkuRule] = Field(default_factory=list, max_length=20)
+    one_tick_remove_with_parent: bool = False
+    one_tick_match_parent_quantity: bool = False
     one_tick_disable_quantity_changes: bool = False
     one_tick_disable_checkout_only: bool = False
     product_swap_enabled: bool = False
@@ -521,11 +550,14 @@ class CartFeaturesConfiguration(BaseModel):
                 raise ValueError("one-tick upsell text cannot be empty")
             if len(self.one_tick_text.text) > 64:
                 raise ValueError("one-tick upsell text cannot exceed 64 characters")
+        if self.one_tick_sku_enabled and not self.one_tick_sku_rules:
+            raise ValueError("add at least one SKU-level one-tick rule")
         groups = [offer.id for offer in self.free_gift_offers]
         groups.extend(
             condition.id for offer in self.free_gift_offers for condition in offer.conditions
         )
         groups.extend(reward.id for reward in self.tiered_rewards)
+        groups.extend(rule.id for rule in self.one_tick_sku_rules)
         groups.extend(rule.id for rule in self.product_swap_rules)
         groups.extend(group.id for group in self.product_swap_size_groups)
         if len(groups) != len(set(groups)):

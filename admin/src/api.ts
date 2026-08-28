@@ -186,6 +186,17 @@ export interface ProductSwapSizeGroup {
   variant_titles: string[];
 }
 
+export interface OneTickSkuRule {
+  id: string;
+  text: RichTextStyle;
+  variant_id: string;
+  variant_title: string;
+  applicable_on: 'all' | 'products' | 'collections';
+  trigger_ids: string[];
+  trigger_titles: string[];
+  trigger_product_ids: string[][];
+}
+
 export interface CartFeaturesConfiguration {
   discount_mode: 'checkout_offers' | 'hide' | 'discount_box';
   order_notes_enabled: boolean;
@@ -212,6 +223,9 @@ export interface CartFeaturesConfiguration {
   one_tick_variant_id: string | null;
   one_tick_variant_title: string;
   one_tick_sku_enabled: boolean;
+  one_tick_sku_rules: OneTickSkuRule[];
+  one_tick_remove_with_parent: boolean;
+  one_tick_match_parent_quantity: boolean;
   one_tick_disable_quantity_changes: boolean;
   one_tick_disable_checkout_only: boolean;
   product_swap_enabled: boolean;
