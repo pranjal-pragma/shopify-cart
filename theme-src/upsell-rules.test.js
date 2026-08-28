@@ -41,6 +41,28 @@ test('targeted upsell rules take priority over an all-products fallback', () => 
   assert.equal(rule?.id, 'targeted');
 });
 
+test('first matching targeted rule wins in configured order', () => {
+  const rule = matchingUpsellRule(
+    {items: [{product_id: 101, quantity: 1, properties: {}}]},
+    [
+      {id: 'first', applicable_on: 'products', trigger_ids: ['gid://shopify/Product/101']},
+      {id: 'second', applicable_on: 'products', trigger_ids: ['gid://shopify/Product/101']},
+    ],
+  );
+  assert.equal(rule?.id, 'first');
+});
+
+test('all-products rule is used only when targeted rules do not match', () => {
+  const rule = matchingUpsellRule(
+    {items: [{product_id: 404, quantity: 1, properties: {}}]},
+    [
+      {id: 'targeted', applicable_on: 'products', trigger_ids: ['gid://shopify/Product/101']},
+      {id: 'fallback', applicable_on: 'all'},
+    ],
+  );
+  assert.equal(rule?.id, 'fallback');
+});
+
 test('collection rules match flattened product snapshots', () => {
   const rule = matchingUpsellRule(
     {items: [{product_id: 202, quantity: 1, properties: {}}]},

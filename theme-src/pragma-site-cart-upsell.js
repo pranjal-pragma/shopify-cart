@@ -27,6 +27,11 @@ import {
     const numericId = (gid) => Number(String(gid || '').split('/').pop());
     const gid = (type, id) => `gid://shopify/${type}/${id}`;
     const formatMoney = (cents) => new Intl.NumberFormat(undefined, {style: 'currency', currency}).format(Number(cents || 0) / 100);
+    const displayProductTitle = (item) => (
+      item.product_title && item.product_title !== 'Product'
+        ? item.product_title
+        : String(item.variant_title || '').split(' - ')[0]?.trim() || 'Recommended product'
+    );
     const styleTitle = (element, style) => {
       element.textContent = style?.text || 'Recommended for you';
       element.style.fontSize = `${style?.font_size || 16}px`;
@@ -75,7 +80,7 @@ import {
           const normalized = normalizeProduct(product, item.variant_id);
           return normalized ? {...normalized, image_url: item.image_url || normalized.image_url} : null;
         }
-        return {...item, price_cents: Math.round(Number(item.price || 0) * 100), variants: [{id: numericId(item.variant_id), title: item.variant_title, available: true, price: Math.round(Number(item.price || 0) * 100)}], description: ''};
+        return {...item, product_title: displayProductTitle(item), price_cents: Math.round(Number(item.price || 0) * 100), variants: [{id: numericId(item.variant_id), title: item.variant_title, available: true, price: Math.round(Number(item.price || 0) * 100)}], description: ''};
       }));
       return products.filter(Boolean);
     };

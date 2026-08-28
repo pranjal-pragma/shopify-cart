@@ -1,4 +1,4 @@
-import {ArrowDown, ArrowUp, Bold, Italic, PackageSearch, Plus, RotateCcw, Sparkles, Trash2, Underline, X} from 'lucide-react';
+import {ArrowDown, ArrowUp, Bold, Italic, PackageSearch, Plus, RotateCcw, ShoppingBag, Sparkles, Trash2, Underline, X} from 'lucide-react';
 import {useEffect, useMemo, useState} from 'react';
 
 import {getCartUpsell, saveCartUpsell, type CartUpsellConfiguration, type RichTextStyle, type ShopifyResource, type UpsellRecommendation, type UpsellRule} from './api';
@@ -35,7 +35,14 @@ function asRecommendation(resource: ShopifyResource): UpsellRecommendation | nul
   const product = resource.product ?? resource;
   const variant = resource.product ? resource : resource.variants?.[0];
   if (!variant || !variant.id.includes('/ProductVariant/') || !product.id.includes('/Product/')) return null;
-  return {variant_id: variant.id, variant_title: variant.displayName ?? variant.title ?? 'Default variant', product_id: product.id, product_title: product.title ?? product.displayName ?? 'Product', product_handle: product.handle ?? '', image_url: product.image?.originalSrc ?? product.image?.url ?? product.images?.[0]?.originalSrc ?? product.images?.[0]?.url ?? '', price: variant.price ?? ''};
+  const variantTitle = variant.displayName ?? variant.title ?? 'Default variant';
+  const inferredProductTitle = variantTitle.split(' - ')[0]?.trim();
+  return {variant_id: variant.id, variant_title: variantTitle, product_id: product.id, product_title: product.title ?? product.displayName ?? inferredProductTitle ?? 'Product', product_handle: product.handle ?? '', image_url: variant.image?.originalSrc ?? variant.image?.url ?? product.image?.originalSrc ?? product.image?.url ?? product.images?.[0]?.originalSrc ?? product.images?.[0]?.url ?? '', price: variant.price ?? ''};
+}
+
+function previewProductTitle(item: {product_title: string; variant_title?: string}) {
+  if (item.product_title && item.product_title !== 'Product') return item.product_title;
+  return item.variant_title?.split(' - ')[0]?.trim() || 'Recommended product';
 }
 
 function validationError(configuration: CartUpsellConfiguration): string | null {
@@ -146,12 +153,16 @@ export function CartUpsellPage({previewMode}: {previewMode: boolean}) {
         <button className="button button--secondary" type="button" disabled={configuration.upsell_rules.length >= 20} onClick={() => update('upsell_rules', [...configuration.upsell_rules, newRule()])}><Plus size={16} />Add rule</button>
       </Section>
     </div>
-    <div className="preview-column"><div className="preview-column__heading"><span>Live preview</span><small>Cart recommendations</small></div><aside className="cart-preview" aria-label="Cart preview"><div className="cart-preview__label"><Sparkles size={15} />Recommendation preview</div>
-      {!configuration.upsell_enabled ? <div className="upsell-preview upsell-preview--empty"><strong>Cart upsells are disabled</strong><small>Enable cart upsells to publish recommendations.</small></div> : <div className="upsell-preview" style={{background: previewBackground, color: previewColor}}>
-        <strong style={{fontSize: previewTitle.font_size, fontWeight: previewTitle.bold ? 700 : 600, fontStyle: previewTitle.italic ? 'italic' : undefined, textDecoration: previewTitle.underline ? 'underline' : undefined}}>{previewTitle.text}</strong>
-        <div>{previewItems.map((item) => <article key={'variant_id' in item ? item.variant_id : item.product_title}>{item.image_url ? <img className="upsell-preview__image" src={item.image_url} alt="" /> : <span className="upsell-preview__image" />}<b>{item.product_title}</b><small>{item.price ? `Rs. ${item.price}` : 'Price from Shopify'}</small><button type="button" disabled>+ Add</button></article>)}</div>
-      </div>}
-      <p className="preview-note">Preview controls are intentionally disabled.</p>
+    <div className="preview-column"><div className="preview-column__heading"><span>Live preview</span><small>Cart recommendations</small></div><aside className="cart-preview cart-preview--upsell" aria-label="Cart preview">
+      <header className="upsell-drawer-preview__header"><span><small>Your order</small><strong>Your cart</strong></span><span className="upsell-drawer-preview__close" aria-hidden="true"><X size={17} /></span></header>
+      <div className="upsell-drawer-preview__content">
+        <article className="upsell-drawer-preview__cart-line"><span><ShoppingBag size={24} /></span><div><strong>Current cart product</strong><small>1 item</small></div><b>Rs. 799</b></article>
+        {!configuration.upsell_enabled ? <div className="upsell-preview upsell-preview--empty"><Sparkles size={20} /><strong>Cart upsells are off</strong></div> : <div className="upsell-preview" style={{background: previewBackground, color: previewColor}}>
+          <strong style={{fontSize: previewTitle.font_size, fontWeight: previewTitle.bold ? 700 : 600, fontStyle: previewTitle.italic ? 'italic' : undefined, textDecoration: previewTitle.underline ? 'underline' : undefined}}>{previewTitle.text}</strong>
+          <div>{previewItems.map((item) => <article key={'variant_id' in item ? item.variant_id : item.product_title}>{item.image_url ? <img className="upsell-preview__image" src={item.image_url} alt="" /> : <span className="upsell-preview__image"><ShoppingBag size={20} /></span>}<span className="upsell-preview__details"><b>{previewProductTitle(item)}</b>{'variant_title' in item && item.variant_title && <small>{item.variant_title}</small>}</span><span className="upsell-preview__actions"><strong>{item.price ? `Rs. ${item.price}` : 'Shopify price'}</strong><button type="button" disabled><Plus size={13} />Add</button></span></article>)}</div>
+        </div>}
+      </div>
+      <footer className="upsell-drawer-preview__footer"><span>Estimated total</span><strong>Rs. 799</strong><button type="button" disabled>Proceed to checkout</button></footer>
     </aside></div></div>
     {dirty && <div className="save-bar" role="region" aria-label="Unsaved changes"><span>Unsaved changes</span><div><button className="button button--secondary" type="button" onClick={() => {setConfiguration(copy(saved)); setMessage('');}}><RotateCcw size={16} />Discard</button><button className="button button--primary" type="button" disabled={saving || previewMode} onClick={save}>{saving ? 'Saving...' : 'Save'}</button></div></div>}
   </div>;
