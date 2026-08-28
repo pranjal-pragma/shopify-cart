@@ -32,6 +32,9 @@ records titled `Product` derive their display title from the saved variant title
 `upsell_variant_behavior=variant_popup` opens the variant chooser only when the recommendation has
 more than one available variant; a single available variant is added directly.
 `upsell_variant_behavior=product_popup` always opens the product-details modal before adding.
+Saving Cart Upsell resolves selected variant IDs through Shopify Admin GraphQL and persists each
+variant's canonical product handle, title, image, and price. The storefront uses the handle to load
+all available variants from Shopify's product JSON before deciding whether to open the chooser.
 
 ## Browser API and events
 

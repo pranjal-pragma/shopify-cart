@@ -28,6 +28,7 @@ from shopify_app.services.shopify import (
     TokenExchangeRequiredError,
     exchange_session_token,
     get_merchant_identity,
+    hydrate_upsell_recommendations,
     list_active_discounts,
     process_webhook,
     publish_cart_appearance,
@@ -456,6 +457,23 @@ async def save_cart_upsell(
     cipher: TokenCipher,
 ) -> CartUpsellResponse:
     _, shop_domain = auth
+    try:
+        configuration = await hydrate_upsell_recommendations(
+            shop_domain=shop_domain,
+            configuration=configuration,
+            db=db,
+            client=client,
+            cipher=cipher,
+        )
+    except TokenExchangeRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="token exchange required"
+        ) from exc
+    except ShopifyUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not load Shopify upsell products",
+        ) from exc
     appearance = await publish_and_store_cart_configuration(
         shop_domain=shop_domain,
         section=configuration.model_dump(mode="json"),

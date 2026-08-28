@@ -9,10 +9,11 @@ from shopify_app.controllers.shopify import (
     validated_cart_features_section,
     validated_cart_upsell_section,
 )
-from shopify_app.schemas import CartFeaturesConfiguration
+from shopify_app.schemas import CartFeaturesConfiguration, CartUpsellConfiguration
 from shopify_app.services.shopify import (
     GiftVariantSnapshot,
     archive_gift_product,
+    enriched_upsell_configuration,
     free_gift_product_input,
     list_active_discounts,
     publish_gift_product,
@@ -37,6 +38,51 @@ def test_legacy_tier_scope_without_resources_migrates_to_all_products() -> None:
 
     assert configuration.tiered_applicable_on == "all"
     assert configuration.tiered_applicable_ids == []
+
+
+def test_upsell_recommendations_are_enriched_with_product_metadata() -> None:
+    configuration = CartUpsellConfiguration.model_validate(
+        {
+            "upsell_enabled": True,
+            "upsell_ai_enabled": False,
+            "upsell_rules": [
+                {
+                    "id": "wax",
+                    "recommendations": [
+                        {
+                            "variant_id": "gid://shopify/ProductVariant/202",
+                            "variant_title": "Wax - Old title",
+                            "product_id": "gid://shopify/Product/101",
+                            "product_title": "Product",
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    enriched = enriched_upsell_configuration(
+        configuration,
+        [
+            {
+                "id": "gid://shopify/ProductVariant/202",
+                "displayName": "Ski Wax - Special",
+                "price": "49.95",
+                "image": {"url": "https://cdn.example.com/wax.png"},
+                "product": {
+                    "id": "gid://shopify/Product/101",
+                    "title": "Ski Wax",
+                    "handle": "ski-wax",
+                    "featuredImage": {"url": "https://cdn.example.com/product.png"},
+                },
+            }
+        ],
+    )
+    recommendation = enriched.upsell_rules[0].recommendations[0]
+    assert recommendation.product_title == "Ski Wax"
+    assert recommendation.product_handle == "ski-wax"
+    assert recommendation.variant_title == "Ski Wax - Special"
+    assert recommendation.image_url == "https://cdn.example.com/wax.png"
+    assert recommendation.price == "49.95"
 
 
 def test_legacy_sku_upsell_without_rules_migrates_to_disabled() -> None:

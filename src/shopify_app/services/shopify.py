@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shopify_app.models import ShopSession, WebhookDelivery
 from shopify_app.schemas import (
     CartFeaturesConfiguration,
+    CartUpsellConfiguration,
     FreeGiftOffer,
     FreeGiftVariant,
     MerchantResponse,
@@ -54,6 +55,98 @@ class InvalidWebhookSignatureError(ShopifyServiceError):
 
 class InvalidWebhookError(ShopifyServiceError):
     """Raised when a webhook payload or shop domain is invalid."""
+
+
+def enriched_upsell_configuration(
+    configuration: CartUpsellConfiguration, nodes: list[dict[str, Any] | None]
+) -> CartUpsellConfiguration:
+    variants = {
+        node["id"]: node
+        for node in nodes
+        if isinstance(node, dict) and isinstance(node.get("id"), str)
+    }
+    rules = []
+    for rule in configuration.upsell_rules:
+        recommendations = []
+        for recommendation in rule.recommendations:
+            node = variants.get(recommendation.variant_id)
+            product = node.get("product") if node else None
+            if not isinstance(product, dict):
+                recommendations.append(recommendation)
+                continue
+            variant_image = node.get("image") if isinstance(node.get("image"), dict) else {}
+            product_image = (
+                product.get("featuredImage")
+                if isinstance(product.get("featuredImage"), dict)
+                else {}
+            )
+            recommendations.append(
+                recommendation.model_copy(
+                    update={
+                        "variant_title": node.get("displayName")
+                        or node.get("title")
+                        or recommendation.variant_title,
+                        "product_id": product.get("id") or recommendation.product_id,
+                        "product_title": product.get("title") or recommendation.product_title,
+                        "product_handle": product.get("handle")
+                        or recommendation.product_handle,
+                        "image_url": variant_image.get("url")
+                        or product_image.get("url")
+                        or recommendation.image_url,
+                        "price": str(node.get("price") or recommendation.price),
+                    }
+                )
+            )
+        rules.append(rule.model_copy(update={"recommendations": recommendations}))
+    return configuration.model_copy(update={"upsell_rules": rules})
+
+
+async def hydrate_upsell_recommendations(
+    *,
+    shop_domain: str,
+    configuration: CartUpsellConfiguration,
+    db: AsyncSession,
+    client: ShopifyClient,
+    cipher: TokenCipher,
+) -> CartUpsellConfiguration:
+    variant_ids = list(
+        dict.fromkeys(
+            recommendation.variant_id
+            for rule in configuration.upsell_rules
+            for recommendation in rule.recommendations
+            if not recommendation.product_handle
+        )
+    )
+    if not variant_ids:
+        return configuration
+    access_token = await get_valid_access_token(
+        shop_domain=shop_domain, db=db, client=client, cipher=cipher
+    )
+    try:
+        payload = await client.graphql(
+            shop_domain=shop_domain,
+            access_token=access_token,
+            query="""
+                query UpsellRecommendationVariants($ids: [ID!]!) {
+                  nodes(ids: $ids) {
+                    ... on ProductVariant {
+                      id
+                      title
+                      displayName
+                      price
+                      image { url }
+                      product { id title handle featuredImage { url } }
+                    }
+                  }
+                }
+            """,
+            variables={"ids": variant_ids},
+        )
+        if payload.get("errors") or not isinstance(payload.get("data", {}).get("nodes"), list):
+            raise ShopifyUpstreamError("Shopify returned invalid upsell variant data")
+        return enriched_upsell_configuration(configuration, payload["data"]["nodes"])
+    except (ShopifyUpstreamError, httpx.HTTPError) as exc:
+        raise ShopifyUnavailableError from exc
 
 
 @dataclass(frozen=True)
