@@ -49,6 +49,11 @@ navigation because Shopify owns discount validation and calculation.
 Tiered reward rows are presentation and eligibility rules; Shopify remains the source of truth for
 the monetary fulfillment:
 
+For subtotal goals, `tiered_exclude_discounts` controls the eligibility metric. When disabled,
+progress uses Shopify's discounted cart or line totals. When enabled, progress uses original totals
+before discounts. Quantity goals are unaffected by this setting. Product and collection scopes apply
+the same calculation only to their selected product IDs.
+
 - `free_gift` links to one configured free-gift offer. On save, the backend aligns that offer's
   eligibility condition with the tier goal. The generated gift variant and Discount Function make
   the selected gift genuinely free at checkout.

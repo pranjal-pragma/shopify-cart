@@ -6,6 +6,8 @@ import {
   createElement as createLucideElement,
 } from 'lucide';
 
+import {rewardMetric} from './reward-metric.js';
+
 (() => {
   const initialize = (api) => {
     if (!api?.root || window.__pragmaSiteCartFeaturesLoaded) return;
@@ -264,26 +266,6 @@ import {
       host.append(block);
     };
 
-    const rewardMetric = (cart) => {
-      const scope = configuration.tiered_applicable_on || 'all';
-      if (scope === 'all') {
-        if (configuration.tiered_reward_condition === 'cart_quantity') return cart.item_count;
-        if (configuration.tiered_reward_condition === 'cart_discount_price') return (cart.total_price - Number(cart.total_discount || 0)) / 100;
-        return (configuration.tiered_exclude_discounts ? Number(cart.items_subtotal_price || cart.total_price) : cart.total_price) / 100;
-      }
-      const productIds = new Set((configuration.tiered_applicable_product_ids || []).flat());
-      const scopedItems = (cart.items || []).filter((item) => productIds.has(`gid://shopify/Product/${item.product_id}`));
-      if (configuration.tiered_reward_condition === 'cart_quantity') {
-        return scopedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-      }
-      const finalPrice = scopedItems.reduce((sum, item) => sum + Number(item.final_line_price || 0), 0);
-      if (configuration.tiered_reward_condition === 'cart_discount_price') {
-        const discount = scopedItems.reduce((sum, item) => sum + Math.max(0, Number(item.original_line_price || item.final_line_price || 0) - Number(item.final_line_price || 0)), 0);
-        return Math.max(0, finalPrice - discount) / 100;
-      }
-      if (!configuration.tiered_exclude_discounts) return finalPrice / 100;
-      return scopedItems.reduce((sum, item) => sum + Number(item.original_line_price || item.final_line_price || 0), 0) / 100;
-    };
     const celebrateReward = (reward) => {
       if (!configuration.tiered_confetti_enabled || celebratedRewards.has(reward.id)) return;
       celebratedRewards.add(reward.id);
@@ -338,7 +320,7 @@ import {
     const renderRewards = (cart) => {
       if (!configuration.tiered_rewards_enabled || !configuration.tiered_rewards?.length) return;
       const rewards = [...configuration.tiered_rewards].sort((left, right) => left.goal - right.goal);
-      const metric = rewardMetric(cart);
+      const metric = rewardMetric(cart, configuration);
       const next = rewards.find((reward) => metric < reward.goal);
       const completed = rewards.filter((reward) => metric >= reward.goal);
       const block = section('psc-cart-feature--rewards');
