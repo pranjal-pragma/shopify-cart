@@ -44,7 +44,9 @@ import {isOneTickItem, oneTickSkuRuleState} from './one-tick-rules.js';
     };
     const checkout = root.querySelector('.psc-cart-checkout-button');
     const termsCheckbox = root.querySelector('[data-psc-terms-checkbox]');
-    const checkoutHref = checkout?.getAttribute('href') || `${routesRoot}checkout`;
+    const checkoutHref = checkout?.dataset.pscCheckoutDestination
+      || checkout?.getAttribute('href')
+      || `${routesRoot}checkout`;
     const termsAreAccepted = () => configuration.terms_checkbox_enabled !== true || termsCheckbox?.checked === true;
     const updateTermsCheckoutGuard = () => {
       if (!checkout) return;

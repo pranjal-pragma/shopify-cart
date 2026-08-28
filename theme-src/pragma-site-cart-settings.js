@@ -1,3 +1,5 @@
+import {checkoutDestination} from './checkout-destination.js';
+
 (() => {
   const initialize = (api) => {
     if (!api?.root || window.__pragmaSiteCartSettingsLoaded) return;
@@ -25,6 +27,15 @@
     const termsText = root.querySelector('[data-psc-terms-text]');
     const termsLink = root.querySelector('[data-psc-terms-link]');
     const checkout = root.querySelector('.psc-cart-checkout-button');
+    const shopifyCheckoutUrl = checkout?.getAttribute('href') || `${routesRoot}checkout`;
+    const selectedCheckoutUrl = checkoutDestination(
+      configuration.pragma_site_cart_checkout,
+      shopifyCheckoutUrl,
+    );
+    if (checkout) {
+      checkout.dataset.pscCheckoutDestination = selectedCheckoutUrl;
+      checkout.setAttribute('href', selectedCheckoutUrl);
+    }
     const notice = root.querySelector('[data-psc-notice]');
     const modal = root.querySelector('[data-psc-product-modal]');
     const modalImage = root.querySelector('[data-psc-modal-image]');

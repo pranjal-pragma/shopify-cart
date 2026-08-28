@@ -41,8 +41,13 @@ Custom scripts receive `pragmaSiteCart` and `configuration` arguments.
 The Cart Features coupon form applies codes through the locale-aware Shopify Ajax Cart
 `cart/update.js` endpoint using its `discount` field. Applied codes are derived from cart-level and
 line-level discount applications, totals are refreshed through `pragmaSiteCart.sync()`, and posting
-an empty discount string removes all entered coupon codes. Checkout remains a normal `/checkout`
-navigation because Shopify owns discount validation and calculation.
+an empty discount string removes all entered coupon codes. Shopify still owns discount validation
+and calculation at checkout.
+
+`pragma_site_cart_checkout` controls the primary cart checkout destination. When enabled, the
+button uses the temporary Pragma checkout URL in `checkout-destination.js`; when disabled, it
+preserves Shopify's original `/checkout` destination. Terms and cart-content checkout guards apply
+to both routes. Replace the temporary URL when the production Pragma checkout endpoint is ready.
 
 ## Tiered rewards
 

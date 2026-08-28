@@ -767,7 +767,7 @@ export function CartAppearancePage({previewMode}: {previewMode: boolean}) {
             <Toggle checked={configuration.checkout_subtext_enabled} label="Add subtext" onChange={(value) => update('checkout_subtext_enabled', value)} />
             {configuration.checkout_subtext_enabled && <RichTextField label="Button subtext" value={configuration.checkout_subtext} onChange={(value) => update('checkout_subtext', value)} />}
             <AlignmentPicker value={configuration.checkout_alignment} onChange={(value) => update('checkout_alignment', value)} />
-            <Toggle checked={configuration.pragma_site_cart_checkout} label="pragma-site-cart Checkout" onChange={(value) => update('pragma_site_cart_checkout', value)} />
+            <Toggle checked={configuration.pragma_site_cart_checkout} label="pragma-site-cart Checkout" description="On uses the Pragma Site Cart checkout experience. Off uses standard Shopify Checkout." onChange={(value) => update('pragma_site_cart_checkout', value)} />
             <Toggle checked={configuration.show_payment_icons} label="Show payment icons on checkout button" onChange={(value) => update('show_payment_icons', value)} />
           </EditorSection>
 
