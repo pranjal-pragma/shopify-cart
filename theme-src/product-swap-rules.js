@@ -1,5 +1,7 @@
 const numericId = (gid) => Number(String(gid || '').split('/').pop());
 
+export const swapQuantity = (item = {}) => Math.max(1, Number(item.quantity || 1));
+
 export const shouldShowOneTickOffers = (configuration = {}) => (
   !configuration.product_swap_enabled || configuration.product_swap_coexistence !== 'swap'
 );

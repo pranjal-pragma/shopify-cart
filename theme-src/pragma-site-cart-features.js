@@ -12,6 +12,7 @@ import {
   matchingSwapRule,
   shouldShowOneTickOffers,
   sizeGroupCandidates,
+  swapQuantity,
 } from './product-swap-rules.js';
 
 (() => {
@@ -506,7 +507,11 @@ import {
         action.addEventListener('click', async () => {
           action.disabled = true;
           try {
-            await addVariant(target.variantId, {...(item.properties || {}), _pragma_site_cart_swap: 'true'});
+            await addVariant(
+              target.variantId,
+              {...(item.properties || {}), _pragma_site_cart_swap: 'true'},
+              swapQuantity(item),
+            );
             await removeLine(item, line);
             await api.sync();
           } catch (error) {

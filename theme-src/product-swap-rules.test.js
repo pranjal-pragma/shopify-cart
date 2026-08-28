@@ -5,7 +5,14 @@ import {
   matchingSwapRule,
   shouldShowOneTickOffers,
   sizeGroupCandidates,
+  swapQuantity,
 } from './product-swap-rules.js';
+
+test('product swaps preserve the original cart line quantity', () => {
+  assert.equal(swapQuantity({quantity: 2}), 2);
+  assert.equal(swapQuantity({quantity: 1}), 1);
+  assert.equal(swapQuantity({}), 1);
+});
 
 test('swap-only mode suppresses one-tick offers', () => {
   assert.equal(shouldShowOneTickOffers({
