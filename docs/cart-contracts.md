@@ -125,8 +125,11 @@ One-tick and free-gift lines are never counted as matching parent products.
 The upsell API is isolated at `/api/v1/shopify/upsell`. Shopify's Product Recommendations Ajax
 endpoint supplies AI results. Rule-based recommendations store the selected product variant,
 product identity, handle, image, and price so the theme can render and add the line. Product rules
-match cart product GIDs directly. Collection rules use the product IDs returned with the Shopify
-resource-picker selection; keep those snapshots current when collection membership changes.
+match cart product GIDs directly. Each selected trigger stores its own product-ID snapshot, so
+removing a trigger also removes its matching data. Collection rules use the product IDs returned
+with the Shopify resource-picker selection; keep those snapshots current when collection
+membership changes. Targeted rules take priority over an all-products fallback, while ordering
+controls determine priority among rules of the same scope.
 
 Tiered reward product and collection scopes follow the same snapshot contract. The configuration
 stores selected resource IDs and titles plus one product-ID snapshot per resource. The storefront
@@ -143,7 +146,10 @@ and offers the first configured variant that is available and priced above the c
 `upsell_variant_behavior=variant_popup` opens option selection when a recommendation has multiple
 available variants. `product_popup` always opens a details dialog. Added lines carry
 `_pragma_site_cart_upsell=true`, and `upsell_cap_quantity` limits quantities added through the
-recommendation UI without changing the catalog or inventory.
+recommendation UI without changing the catalog or inventory. Rule recommendations hydrate the
+exact configured variant from live product JSON and omit unavailable variants, duplicate entries,
+and products already represented in the cart. Upsell, free-gift, and one-tick lines never act as
+rule triggers.
 
 The Discount Function queries `_pragma_site_cart_free_gift_offer`. A mismatch between the query
 and the theme property causes gifts to retain their normal checkout price.

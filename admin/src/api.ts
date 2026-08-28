@@ -268,7 +268,7 @@ export interface UpsellRule {
   applicable_on: 'all' | 'products' | 'collections';
   trigger_ids: string[];
   trigger_titles: string[];
-  trigger_product_ids: string[];
+  trigger_product_ids: string[][];
   recommendations: UpsellRecommendation[];
 }
 

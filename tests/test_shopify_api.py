@@ -341,7 +341,7 @@ async def test_cart_upsell_persists_and_validates_rules(
                     "applicable_on": "products",
                     "trigger_ids": ["gid://shopify/Product/100"],
                     "trigger_titles": ["Snowboard"],
-                    "trigger_product_ids": [],
+                    "trigger_product_ids": [["gid://shopify/Product/100"]],
                     "recommendations": [
                         {
                             "variant_id": "gid://shopify/ProductVariant/201",

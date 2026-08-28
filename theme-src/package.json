@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "esbuild pragma-site-cart.js --bundle --minify --legal-comments=none --outfile=../extensions/pragma-site-cart/assets/pragma-site-cart.js && esbuild pragma-site-cart-extras.js --bundle --minify --legal-comments=none --outfile=../extensions/pragma-site-cart/assets/pragma-site-cart-extras.js && esbuild pragma-site-cart-settings.js --bundle --minify --legal-comments=none --outfile=../extensions/pragma-site-cart/assets/pragma-site-cart-settings.js && esbuild pragma-site-cart-scarcity.js --bundle --minify --legal-comments=none --outfile=../extensions/pragma-site-cart/assets/pragma-site-cart-scarcity.js && esbuild pragma-site-cart-features.js --bundle --minify --legal-comments=none --outfile=../extensions/pragma-site-cart/assets/pragma-site-cart-features.js && esbuild pragma-site-cart-gifts.js --bundle --minify --legal-comments=none --outfile=../extensions/pragma-site-cart/assets/pragma-site-cart-gifts.js && esbuild pragma-site-cart-upsell.js --bundle --minify --legal-comments=none --outfile=../extensions/pragma-site-cart/assets/pragma-site-cart-upsell.js",
-    "test": "node --test reward-metric.test.js one-tick-rules.test.js checkout-destination.test.js product-swap-rules.test.js"
+    "test": "node --test reward-metric.test.js one-tick-rules.test.js checkout-destination.test.js product-swap-rules.test.js upsell-rules.test.js"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

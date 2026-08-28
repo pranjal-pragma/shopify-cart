@@ -7,6 +7,7 @@ from shopify_app.controllers.shopify import (
     align_tiered_gift_offers,
     free_gift_configuration_changed,
     validated_cart_features_section,
+    validated_cart_upsell_section,
 )
 from shopify_app.schemas import CartFeaturesConfiguration
 from shopify_app.services.shopify import (
@@ -43,6 +44,39 @@ def test_legacy_sku_upsell_without_rules_migrates_to_disabled() -> None:
 
     assert configuration.one_tick_sku_enabled is False
     assert configuration.one_tick_sku_rules == []
+
+
+def test_legacy_product_upsell_snapshots_migrate_per_trigger() -> None:
+    configuration = validated_cart_upsell_section(
+        {
+            "upsell_rules": [
+                {
+                    "id": "snowboards",
+                    "title": {"text": "Complete the set"},
+                    "applicable_on": "products",
+                    "trigger_ids": [
+                        "gid://shopify/Product/101",
+                        "gid://shopify/Product/202",
+                    ],
+                    "trigger_titles": ["Small board", "Large board"],
+                    "trigger_product_ids": [],
+                    "recommendations": [
+                        {
+                            "variant_id": "gid://shopify/ProductVariant/303",
+                            "variant_title": "Default",
+                            "product_id": "gid://shopify/Product/303",
+                            "product_title": "Board bag",
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    assert configuration.upsell_rules[0].trigger_product_ids == [
+        ["gid://shopify/Product/101"],
+        ["gid://shopify/Product/202"],
+    ]
 
 
 def test_legacy_product_swap_rule_migrates_its_product_snapshot() -> None:

@@ -76,4 +76,6 @@ Cart upsells use a dedicated configuration section stored in the shared `CartApp
 published with the same app-data metafield as appearance and features. The admin reads and writes
 that section through `/api/v1/shopify/upsell`. The theme extension recalculates recommendations on
 every `pragma-site-cart:cart:rendered` event, queries Shopify's Ajax recommendation endpoint for AI
-mode, and uses matching configured rules as the fallback.
+mode, and uses matching configured rules as the fallback. Rule targeting uses per-resource product
+snapshots, targeted rules precede catch-all rules, and configured recommendation variants are
+revalidated against live storefront product data before rendering.

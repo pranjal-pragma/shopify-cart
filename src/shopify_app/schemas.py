@@ -648,7 +648,7 @@ class UpsellRule(BaseModel):
     applicable_on: Literal["all", "products", "collections"] = "all"
     trigger_ids: list[str] = Field(default_factory=list, max_length=50)
     trigger_titles: list[str] = Field(default_factory=list, max_length=50)
-    trigger_product_ids: list[str] = Field(default_factory=list, max_length=250)
+    trigger_product_ids: list[list[str]] = Field(default_factory=list, max_length=50)
     recommendations: list[UpsellRecommendation] = Field(
         default_factory=list, max_length=20
     )
@@ -659,6 +659,8 @@ class UpsellRule(BaseModel):
             raise ValueError("upsell rule title cannot be empty")
         if len(self.trigger_ids) != len(self.trigger_titles):
             raise ValueError("upsell trigger identifiers and titles must align")
+        if len(self.trigger_ids) != len(self.trigger_product_ids):
+            raise ValueError("upsell triggers and product snapshots must align")
         if self.applicable_on != "all" and not self.trigger_ids:
             raise ValueError("select at least one upsell trigger")
         if not self.recommendations:

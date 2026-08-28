@@ -1876,6 +1876,11 @@ p {
   font-size: 12px;
 }
 
+.feature-item__actions {
+  display: flex;
+  gap: 4px;
+}
+
 .reward-binding__heading {
   align-items: center;
   display: flex;
@@ -2679,7 +2684,9 @@ p {
 .resource-chips button { background: none; border: 0; cursor: pointer; display: inline-flex; padding: 0; }
 .upsell-preview { border: 1px solid #dfe3e8; border-radius: 7px; padding: 14px; pointer-events: none; }
 .upsell-preview > div { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
-.upsell-preview article { background: #fff; border: 1px solid #e2e4e7; border-radius: 6px; color: #202124; display: grid; gap: 5px; padding: 8px; }
-.upsell-preview__image { background: #d8e5df; border-radius: 4px; display: block; height: 72px; }
+.upsell-preview article { background: transparent; border: 1px solid currentColor; border-radius: 6px; color: inherit; display: grid; gap: 5px; padding: 8px; }
+.upsell-preview__image { background: #d8e5df; border-radius: 4px; display: block; height: 72px; object-fit: cover; width: 100%; }
 .upsell-preview article b, .upsell-preview article small { font-size: 11px; }
 .upsell-preview article button { background: #202124; border: 0; border-radius: 4px; color: #fff; font-size: 11px; padding: 7px; }
+.upsell-preview--empty { display: grid; gap: 6px; min-height: 120px; place-content: center; text-align: center; }
+.upsell-preview--empty small { color: #70737a; }

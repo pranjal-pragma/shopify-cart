@@ -140,6 +140,37 @@ def default_cart_upsell() -> CartUpsellConfiguration:
     return CartUpsellConfiguration()
 
 
+def validated_cart_upsell_section(configuration: dict[str, object]) -> CartUpsellConfiguration:
+    section = configuration_section(configuration, set(CartUpsellConfiguration.model_fields))
+    rules = section.get("upsell_rules")
+    if not isinstance(rules, list):
+        return CartUpsellConfiguration.model_validate(section)
+
+    migrated_rules: list[object] = []
+    for raw_rule in rules:
+        if not isinstance(raw_rule, dict):
+            migrated_rules.append(raw_rule)
+            continue
+        rule = dict(raw_rule)
+        trigger_ids = rule.get("trigger_ids")
+        trigger_ids = trigger_ids if isinstance(trigger_ids, list) else []
+        snapshots = rule.get("trigger_product_ids")
+        snapshots = snapshots if isinstance(snapshots, list) else []
+        if snapshots and all(isinstance(item, str) for item in snapshots):
+            if rule.get("applicable_on") == "products":
+                snapshots = [[trigger_id] for trigger_id in trigger_ids]
+            else:
+                snapshots = [snapshots, *([[]] * max(0, len(trigger_ids) - 1))]
+        elif not snapshots and rule.get("applicable_on") == "products":
+            snapshots = [[trigger_id] for trigger_id in trigger_ids]
+        elif not snapshots:
+            snapshots = [[] for _ in trigger_ids]
+        rule["trigger_product_ids"] = snapshots
+        migrated_rules.append(rule)
+    section = {**section, "upsell_rules": migrated_rules}
+    return CartUpsellConfiguration.model_validate(section)
+
+
 def free_gift_configuration_changed(
     previous: CartFeaturesConfiguration,
     current: CartFeaturesConfiguration,
@@ -410,11 +441,8 @@ async def get_cart_upsell(*, auth: tuple[str, str], db: AsyncSession) -> CartUps
     appearance = await db.get(CartAppearance, shop_domain)
     if appearance is None:
         return CartUpsellResponse(**default_cart_upsell().model_dump())
-    section = configuration_section(
-        appearance.configuration, set(CartUpsellConfiguration.model_fields)
-    )
     return CartUpsellResponse(
-        **CartUpsellConfiguration.model_validate(section).model_dump(),
+        **validated_cart_upsell_section(appearance.configuration).model_dump(),
         updated_at=appearance.updated_at.isoformat(),
     )
 
