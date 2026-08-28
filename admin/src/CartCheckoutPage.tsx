@@ -78,8 +78,9 @@ function renderTemplate(template: string) {
   return template.replace(/\{(first_name|last_name|name|phone_number|email)\}/g, (_, key: keyof typeof customer) => customer[key] || '');
 }
 
-function CheckoutPreview({configuration}: {configuration: CartAppearanceConfiguration}) {
+function CheckoutPreview({configuration, customerState}: {configuration: CartAppearanceConfiguration; customerState: 'guest' | 'logged_in'}) {
   const topPlacement = configuration.checkout_address_placement === 'top';
+  const loggedIn = customerState === 'logged_in';
   const customerBlock = (
     <div className="checkout-preview-card">
       <div className="checkout-preview-title">
@@ -103,8 +104,8 @@ function CheckoutPreview({configuration}: {configuration: CartAppearanceConfigur
         <strong>Your cart</strong>
         <span>2 items</span>
       </div>
-      {configuration.checkout_on_cart_enabled && topPlacement && customerBlock}
-      {configuration.checkout_on_cart_enabled && configuration.checkout_login_banner_enabled && (
+      {configuration.checkout_on_cart_enabled && loggedIn && topPlacement && customerBlock}
+      {configuration.checkout_on_cart_enabled && !loggedIn && configuration.checkout_login_banner_enabled && (
         <div className="checkout-preview-banner">
           <MapPin size={16} />
           <span>{configuration.checkout_login_banner_text}</span>
@@ -115,12 +116,12 @@ function CheckoutPreview({configuration}: {configuration: CartAppearanceConfigur
         <div><span /><strong>Everyday tote</strong><b>Rs. 1,249</b></div>
         <div><span /><strong>Classic cap</strong><b>Rs. 699</b></div>
       </div>
-      {configuration.checkout_on_cart_enabled && !topPlacement && customerBlock}
+      {configuration.checkout_on_cart_enabled && loggedIn && !topPlacement && customerBlock}
       <div className="checkout-preview-footer">
         <span>Estimated total</span>
         <strong>Rs. 1,948</strong>
-        <button type="button" disabled={configuration.checkout_on_cart_enabled && !configuration.checkout_guest_checkout_enabled}>
-          {configuration.checkout_guest_checkout_enabled ? 'Checkout' : 'Login required'}
+        <button type="button" disabled={configuration.checkout_on_cart_enabled && !loggedIn && !configuration.checkout_guest_checkout_enabled}>
+          {!configuration.checkout_on_cart_enabled || loggedIn || configuration.checkout_guest_checkout_enabled ? 'Checkout' : 'Login required'}
         </button>
       </div>
     </aside>
@@ -145,6 +146,7 @@ export function CartCheckoutPage({previewMode}: {previewMode: boolean}) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [previewCustomerState, setPreviewCustomerState] = useState<'guest' | 'logged_in'>('guest');
   const dirty = useMemo(() => JSON.stringify(configuration) !== JSON.stringify(saved), [configuration, saved]);
   const update: Update = useCallback((key, value) => {
     setConfiguration((current) => ({...current, [key]: value}));
@@ -211,6 +213,10 @@ export function CartCheckoutPage({previewMode}: {previewMode: boolean}) {
           <h1>Bring login and address choice into the cart</h1>
           <p>Control the in-cart login prompt, guest access, personalization, and saved-address placement.</p>
         </div>
+        <div className="preview-state-switch" role="group" aria-label="Preview customer state">
+          <button type="button" className={previewCustomerState === 'guest' ? 'is-active' : ''} onClick={() => setPreviewCustomerState('guest')}>Guest</button>
+          <button type="button" className={previewCustomerState === 'logged_in' ? 'is-active' : ''} onClick={() => setPreviewCustomerState('logged_in')}>Logged in</button>
+        </div>
       </header>
 
       {error && <div className="inline-alert" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
@@ -253,7 +259,7 @@ export function CartCheckoutPage({previewMode}: {previewMode: boolean}) {
 
         <div className="preview-column">
           <div className="preview-column__heading"><span>Live preview</span><small>Logged-in and guest states</small></div>
-          <CheckoutPreview configuration={configuration} />
+          <CheckoutPreview configuration={configuration} customerState={previewCustomerState} />
         </div>
       </div>
 

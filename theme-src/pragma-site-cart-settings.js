@@ -1,4 +1,9 @@
 import {checkoutDestination} from './checkout-destination.js';
+import {
+  checkoutSettingsBlockReason,
+  renderCustomerTemplate,
+  setCheckoutGuard,
+} from './checkout-on-cart.js';
 
 (() => {
   const initialize = (api) => {
@@ -45,6 +50,8 @@ import {checkoutDestination} from './checkout-destination.js';
     const modalPrice = root.querySelector('[data-psc-modal-price]');
     const modalDescription = root.querySelector('[data-psc-modal-description]');
     const modalLink = root.querySelector('[data-psc-modal-link]');
+    const content = root.querySelector('[data-psc-content]');
+    const footer = root.querySelector('[data-psc-footer]');
     const checkoutOnCart = root.querySelector('[data-psc-checkout-on-cart]');
     const loginBanner = root.querySelector('[data-psc-login-banner]');
     const loginBannerText = root.querySelector('[data-psc-login-banner-text]');
@@ -86,7 +93,9 @@ import {checkoutDestination} from './checkout-destination.js';
     let submitTimer = null;
     let confirmationTimer = null;
     let selectedAddressId = null;
+    let savedAddressId = null;
     let addressSaveController = null;
+    let checkoutNavigationPending = false;
     let customer = {logged_in: false, addresses: []};
     try {
       customer = JSON.parse(customerJson?.textContent || '{"logged_in":false,"addresses":[]}');
@@ -114,15 +123,10 @@ import {checkoutDestination} from './checkout-destination.js';
       }
     };
 
-    const isTruthy = (value) => value === true || ['true', '1', 'yes'].includes(String(value).toLowerCase());
     const addressLabel = (address) => address.name && address.summary && address.name !== address.summary
       ? `${address.name} - ${address.summary}`
       : address.summary || address.name || 'Saved address';
     const selectedAddress = () => (customer.addresses || []).find((address) => String(address.id) === String(selectedAddressId));
-    const renderTemplate = (template) => String(template || '').replace(
-      /\{(first_name|last_name|name|phone_number|email)\}/g,
-      (_match, key) => customer[key] || '',
-    ).replace(/\s+/g, ' ').trim();
     const matchesSelector = (element, selector) => {
       try {
         return Boolean(element.closest(selector));
@@ -241,20 +245,15 @@ import {checkoutDestination} from './checkout-destination.js';
 
     stickyCart.addEventListener('click', api.open);
 
-    let termsAccepted = !configuration.terms_checkbox_enabled;
     if (configuration.terms_checkbox_enabled) {
       terms.hidden = false;
       termsText.textContent = configuration.terms_checkbox_text;
       termsLink.href = configuration.terms_checkbox_url;
-      termsCheckbox.addEventListener('change', () => {
-        termsAccepted = termsCheckbox.checked;
-        updateCheckoutState();
-      });
     }
 
     const saveSelectedAddress = async () => {
       const address = selectedAddress();
-      if (!address) return;
+      if (!address || String(savedAddressId) === String(address.id)) return true;
       addressSaveController?.abort();
       addressSaveController = new AbortController();
       try {
@@ -271,12 +270,15 @@ import {checkoutDestination} from './checkout-destination.js';
           }),
         });
         if (!response.ok) throw new Error(`Address update failed (${response.status})`);
+        savedAddressId = String(address.id);
+        return true;
       } catch (error) {
-        if (error.name === 'AbortError') return;
+        if (error.name === 'AbortError') return false;
         console.error('[pragma-site-cart] Unable to save selected address', error);
         notice.textContent = 'Your selected address could not be saved. You can still continue to checkout.';
         notice.hidden = false;
         notice.classList.add('psc-cart-notice--error');
+        return false;
       }
     };
 
@@ -285,11 +287,11 @@ import {checkoutDestination} from './checkout-destination.js';
       if (configuration.checkout_address_placement === 'bottom') {
         checkoutOnCart.classList.add('psc-cart-checkout-on-cart--bottom');
         checkoutOnCart.classList.remove('psc-cart-checkout-on-cart--top');
-        checkoutOnCart.parentElement?.insertBefore(checkoutOnCart, footer);
+        if (footer) checkoutOnCart.parentElement?.insertBefore(checkoutOnCart, footer);
       } else {
         checkoutOnCart.classList.add('psc-cart-checkout-on-cart--top');
         checkoutOnCart.classList.remove('psc-cart-checkout-on-cart--bottom');
-        checkoutOnCart.parentElement?.insertBefore(checkoutOnCart, content);
+        if (content) checkoutOnCart.parentElement?.insertBefore(checkoutOnCart, content);
       }
     };
 
@@ -306,9 +308,10 @@ import {checkoutDestination} from './checkout-destination.js';
       customerPanel.hidden = !loggedIn;
       if (!loggedIn) return;
 
-      personalisation.textContent = renderTemplate(configuration.checkout_personalisation_message);
+      personalisation.textContent = renderCustomerTemplate(configuration.checkout_personalisation_message, customer);
       const addresses = Array.isArray(customer.addresses) ? customer.addresses : [];
       const cartAddressId = nextCart.attributes?._pragma_site_cart_selected_address_id;
+      savedAddressId = cartAddressId || savedAddressId;
       selectedAddressId = selectedAddressId || cartAddressId || addresses.find((address) => address.is_default)?.id || addresses[0]?.id || null;
 
       addressField.hidden = addresses.length === 0;
@@ -334,39 +337,36 @@ import {checkoutDestination} from './checkout-destination.js';
     });
 
     const updateCheckoutState = () => {
-      const loginRequired = Boolean(
-        configuration.checkout_on_cart_enabled
-        && configuration.checkout_guest_checkout_enabled !== true
-        && customer.logged_in !== true,
-      );
-      const upsellOnly = Boolean(
-        configuration.disable_checkout_for_upsell_only
-        && cart?.items?.length
-        && cart.items.every((item) => isTruthy(item.properties?._pragma_site_cart_upsell)),
-      );
-      const oneTickOnly = Boolean(
-        configuration.one_tick_disable_checkout_only
-        && cart?.items?.length
-        && cart.items.every((item) => isTruthy(item.properties?._pragma_site_cart_one_tick)),
-      );
-      const reason = loginRequired
-        ? 'Log in to continue checkout.'
-        : !termsAccepted
-        ? 'Accept the Terms & Conditions to continue.'
-        : upsellOnly || oneTickOnly ? 'Add a regular product before checkout.' : '';
-      checkout.classList.toggle('psc-cart-checkout-button--disabled', Boolean(reason));
-      checkout.setAttribute('aria-disabled', String(Boolean(reason)));
-      checkout.dataset.pscBlockedReason = reason;
+      const reason = checkoutSettingsBlockReason(configuration, customer, cart);
+      setCheckoutGuard(checkout, 'settings', reason, selectedCheckoutUrl);
     };
 
-    checkout.addEventListener('click', (event) => {
+    checkout.addEventListener('click', async (event) => {
       const reason = checkout.dataset.pscBlockedReason;
-      if (!reason) return;
+      if (reason) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        notice.textContent = reason;
+        notice.hidden = false;
+        notice.classList.add('psc-cart-notice--error');
+        return;
+      }
+      const address = selectedAddress();
+      if (
+        customer.logged_in !== true
+        || !address
+        || String(savedAddressId) === String(address.id)
+        || checkoutNavigationPending
+      ) return;
       event.preventDefault();
-      notice.textContent = reason;
-      notice.hidden = false;
-      notice.classList.add('psc-cart-notice--error');
-    });
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      checkoutNavigationPending = true;
+      checkout.setAttribute('aria-busy', 'true');
+      await saveSelectedAddress();
+      window.location.assign(selectedCheckoutUrl);
+    }, {capture: true});
 
     const selectedVariantId = Number(String(configuration.quantity_limit_variant_id || '').split('/').pop());
     const applyQuantityRules = (nextCart) => {

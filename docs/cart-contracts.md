@@ -64,6 +64,18 @@ button uses the temporary Pragma checkout URL in `checkout-destination.js`; when
 preserves Shopify's original `/checkout` destination. Terms and cart-content checkout guards apply
 to both routes. Replace the temporary URL when the production Pragma checkout endpoint is ready.
 
+`checkout_on_cart_enabled` adds an identity and saved-address panel to non-empty carts. Liquid
+publishes only the current customer's profile and saved-address summaries into the app embed. Guest
+shoppers see the configured login banner; when guest checkout is disabled, the checkout link is
+removed until Shopify reports a logged-in customer. Logged-in shoppers can select one of their
+Shopify customer addresses. The selection is persisted to cart attributes as
+`_pragma_site_cart_selected_address_id` and `Delivery address` before checkout navigation.
+
+The selected address is order metadata; Shopify remains responsible for collecting and validating
+the actual shipping address during standard checkout. The panel can be placed immediately above
+the cart content or immediately above the drawer footer. Login, terms, upsell-only, and one-tick-only
+checkout guards share one blocking state so clearing one requirement cannot bypass another.
+
 ## Tiered rewards
 
 Tiered reward rows are presentation and eligibility rules; Shopify remains the source of truth for
@@ -145,6 +157,10 @@ removing a trigger also removes its matching data. Collection rules use the prod
 with the Shopify resource-picker selection; keep those snapshots current when collection
 membership changes. Targeted rules take priority over an all-products fallback, while ordering
 controls determine priority among rules of the same scope.
+
+Deleting the final rule clears the rule-fallback setting before saving. If AI recommendations are
+also disabled, cart upsells are disabled because no recommendation source remains. Removing the
+last recommendation from a rule removes that empty rule and applies the same cleanup.
 
 Tiered reward product and collection scopes follow the same snapshot contract. The configuration
 stores selected resource IDs and titles plus one product-ID snapshot per resource. The storefront

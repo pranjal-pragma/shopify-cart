@@ -66,6 +66,32 @@ export function CartUpsellPage({previewMode}: {previewMode: boolean}) {
   const dirty = useMemo(() => JSON.stringify(configuration) !== JSON.stringify(saved), [configuration, saved]);
   const update = <K extends keyof CartUpsellConfiguration>(key: K, value: CartUpsellConfiguration[K]) => setConfiguration((current) => ({...current, [key]: value}));
   const updateRule = (id: string, change: Partial<UpsellRule>) => update('upsell_rules', configuration.upsell_rules.map((rule) => rule.id === id ? {...rule, ...change} : rule));
+  const removeRule = (id: string) => setConfiguration((current) => {
+    const upsellRules = current.upsell_rules.filter((rule) => rule.id !== id);
+    const hasRecommendationSource = current.upsell_ai_enabled || upsellRules.length > 0;
+    return {
+      ...current,
+      upsell_enabled: hasRecommendationSource ? current.upsell_enabled : false,
+      upsell_rule_fallback_enabled: upsellRules.length > 0 && current.upsell_rule_fallback_enabled,
+      upsell_rules: upsellRules,
+    };
+  });
+  const removeRecommendation = (ruleId: string, position: number) => setConfiguration((current) => {
+    const rule = current.upsell_rules.find((item) => item.id === ruleId);
+    if (!rule) return current;
+    const recommendations = rule.recommendations.filter((_, index) => index !== position);
+    if (recommendations.length > 0) {
+      return {...current, upsell_rules: current.upsell_rules.map((item) => item.id === ruleId ? {...item, recommendations} : item)};
+    }
+    const upsellRules = current.upsell_rules.filter((item) => item.id !== ruleId);
+    const hasRecommendationSource = current.upsell_ai_enabled || upsellRules.length > 0;
+    return {
+      ...current,
+      upsell_enabled: hasRecommendationSource ? current.upsell_enabled : false,
+      upsell_rule_fallback_enabled: upsellRules.length > 0 && current.upsell_rule_fallback_enabled,
+      upsell_rules: upsellRules,
+    };
+  });
   const moveRule = (from: number, to: number) => {
     if (to < 0 || to >= configuration.upsell_rules.length) return;
     const rules = [...configuration.upsell_rules];
@@ -128,7 +154,7 @@ export function CartUpsellPage({previewMode}: {previewMode: boolean}) {
           <div className="feature-item__header"><strong>Rule {index + 1}</strong><div className="feature-item__actions">
             <button className="icon-button" type="button" disabled={index === 0} onClick={() => moveRule(index, index - 1)} aria-label={`Move rule ${index + 1} up`} title="Move up"><ArrowUp size={15} /></button>
             <button className="icon-button" type="button" disabled={index === configuration.upsell_rules.length - 1} onClick={() => moveRule(index, index + 1)} aria-label={`Move rule ${index + 1} down`} title="Move down"><ArrowDown size={15} /></button>
-            <button className="icon-button icon-button--danger" type="button" onClick={() => update('upsell_rules', configuration.upsell_rules.filter((item) => item.id !== rule.id))} aria-label={`Remove rule ${index + 1}`} title="Remove"><Trash2 size={16} /></button>
+            <button className="icon-button icon-button--danger" type="button" onClick={() => removeRule(rule.id)} aria-label={`Remove rule ${index + 1}`} title="Remove"><Trash2 size={16} /></button>
           </div></div>
           <RichField label="Title" value={rule.title} onChange={(value) => updateRule(rule.id, {title: value})} />
           <div className="field-grid"><NumberField label="Products to display" max={10} value={rule.product_count} onChange={(value) => updateRule(rule.id, {product_count: value})} /><ColorField label="Background color" value={rule.background_color} onChange={(value) => updateRule(rule.id, {background_color: value})} /><ColorField label="Text color" value={rule.text_color} onChange={(value) => updateRule(rule.id, {text_color: value})} /></div>
@@ -148,7 +174,7 @@ export function CartUpsellPage({previewMode}: {previewMode: boolean}) {
           <ResourceList label="Recommended variants" items={rule.recommendations.map((item) => `${item.product_title} - ${item.variant_title}`)} disabled={previewMode || rule.recommendations.length >= 20} onPick={async () => {
             const selected = (await pickMany('variant', rule.recommendations.map((item) => item.variant_id), 20)).map(asRecommendation).filter((item): item is UpsellRecommendation => Boolean(item));
             updateRule(rule.id, {recommendations: Array.from(new Map([...rule.recommendations, ...selected].map((item) => [item.variant_id, item])).values()).slice(0, 20)});
-          }} onRemove={(position) => updateRule(rule.id, {recommendations: rule.recommendations.filter((_, itemIndex) => itemIndex !== position)})} />
+          }} onRemove={(position) => removeRecommendation(rule.id, position)} />
         </article>)}</div>
         <button className="button button--secondary" type="button" disabled={configuration.upsell_rules.length >= 20} onClick={() => update('upsell_rules', [...configuration.upsell_rules, newRule()])}><Plus size={16} />Add rule</button>
       </Section>

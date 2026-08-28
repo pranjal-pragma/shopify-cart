@@ -7,6 +7,7 @@ import {
 } from 'lucide';
 
 import {rewardMetric} from './reward-metric.js';
+import {setCheckoutGuard} from './checkout-on-cart.js';
 import {isOneTickItem, oneTickSkuRuleState} from './one-tick-rules.js';
 import {
   matchingSwapRule,
@@ -56,11 +57,8 @@ import {
     const termsAreAccepted = () => configuration.terms_checkbox_enabled !== true || termsCheckbox?.checked === true;
     const updateTermsCheckoutGuard = () => {
       if (!checkout) return;
-      const blocked = !termsAreAccepted();
-      checkout.classList.toggle('psc-cart-checkout-button--disabled', blocked);
-      checkout.setAttribute('aria-disabled', String(blocked));
-      if (blocked) checkout.removeAttribute('href');
-      else checkout.setAttribute('href', checkoutHref);
+      const reason = termsAreAccepted() ? '' : 'Accept the Terms & Conditions to continue.';
+      setCheckoutGuard(checkout, 'terms', reason, checkoutHref);
     };
     const blockCheckoutWithoutTerms = (event) => {
       if (termsAreAccepted()) return;
