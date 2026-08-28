@@ -29,12 +29,10 @@ export const matchingUpsellRule = (cart, rules = []) => {
     || rules.find((rule) => rule.applicable_on === 'all');
 };
 
-export const ruleRecommendations = (cart, rule) => {
+export const ruleRecommendations = (_cart, rule) => {
   if (!rule) return [];
-  const inCart = new Set((cart?.items || []).map((item) => Number(item.product_id)));
   const unique = new Map();
   for (const recommendation of rule.recommendations || []) {
-    if (inCart.has(numericId(recommendation.product_id))) continue;
     if (!unique.has(recommendation.variant_id)) {
       unique.set(recommendation.variant_id, recommendation);
     }

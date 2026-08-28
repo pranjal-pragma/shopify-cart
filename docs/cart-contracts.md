@@ -24,10 +24,10 @@ and Shopify Discount Function. Change them together.
 The upsell recommendation section is appended inside `[data-psc-content]`, after the cart lines.
 It must remain in that scrollable content container rather than becoming a direct child of the
 named drawer grid; direct grid children without an assigned area can be squeezed out of view.
-Rule recommendations exclude products already present in the cart, deduplicate selected variants,
-and honor the rule's product limit. Targeted rules are evaluated in their configured order before
-the first all-products fallback rule. Legacy picker records titled `Product` derive their display
-title from the saved variant title.
+Manual rule recommendations preserve every distinct selected variant, including variants whose
+product is already present in the cart, and then apply the rule's product limit. Targeted rules are
+evaluated in their configured order before the first all-products fallback rule. Legacy picker
+records titled `Product` derive their display title from the saved variant title.
 
 ## Browser API and events
 

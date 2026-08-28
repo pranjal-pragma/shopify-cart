@@ -91,7 +91,7 @@ test('managed cart lines do not trigger upsell rules', () => {
   }]), undefined);
 });
 
-test('rule recommendations remove cart products, duplicates, and overflow', () => {
+test('rule recommendations preserve selected variants, remove duplicates, and limit results', () => {
   const recommendation = (variantId, productId) => ({
     variant_id: `gid://shopify/ProductVariant/${variantId}`,
     product_id: `gid://shopify/Product/${productId}`,
@@ -110,9 +110,23 @@ test('rule recommendations remove cart products, duplicates, and overflow', () =
     },
   );
   assert.deepEqual(recommendations.map((item) => item.variant_id), [
+    'gid://shopify/ProductVariant/1001',
     'gid://shopify/ProductVariant/2002',
-    'gid://shopify/ProductVariant/3003',
   ]);
+});
+
+test('manual rules can recommend multiple variants of a product already in the cart', () => {
+  const recommendations = ruleRecommendations(
+    {items: [{product_id: 101, variant_id: 1001}]},
+    {
+      product_count: 4,
+      recommendations: [1001, 1002, 1003, 1004].map((variantId) => ({
+        variant_id: `gid://shopify/ProductVariant/${variantId}`,
+        product_id: 'gid://shopify/Product/101',
+      })),
+    },
+  );
+  assert.equal(recommendations.length, 4);
 });
 
 test('quantity caps count every cart line for the recommended variant', () => {
