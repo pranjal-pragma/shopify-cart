@@ -12,13 +12,12 @@ import {
     if (!api?.root || window.__pragmaSiteCartUpsellLoaded) return;
     window.__pragmaSiteCartUpsellLoaded = true;
     const {root, configuration} = api;
-    const drawer = root.querySelector('[data-psc-drawer]');
-    const footer = root.querySelector('[data-psc-footer]');
+    const content = root.querySelector('[data-psc-content]');
     const notice = root.querySelector('[data-psc-notice]');
     const host = document.createElement('section');
     host.className = 'psc-cart-upsell';
     host.hidden = true;
-    drawer.insertBefore(host, root.querySelector('.psc-cart-features') || footer);
+    content.append(host);
     const nativeFetch = window.fetch.bind(window);
     const routesRoot = window.Shopify?.routes?.root || '/';
     const currency = root.dataset.currency || window.Shopify?.currency?.active || 'USD';
@@ -125,19 +124,29 @@ import {
       const list = document.createElement('div'); list.className = 'psc-cart-upsell-list';
       items.forEach((item) => {
         const card = document.createElement('article'); card.className = 'psc-cart-upsell-card';
-        if (item.image_url) {const image = document.createElement('img'); image.src = item.image_url; image.alt = ''; image.loading = 'lazy'; card.append(image);}
+        let media;
+        if (item.image_url) {
+          media = document.createElement('img'); media.src = item.image_url; media.alt = ''; media.loading = 'lazy';
+        } else {
+          media = document.createElement('span'); media.className = 'psc-cart-upsell-card__placeholder'; media.setAttribute('aria-hidden', 'true');
+        }
         const name = document.createElement('strong'); name.textContent = item.product_title;
-        const price = document.createElement('span'); price.textContent = formatMoney(item.price_cents);
+        const variantTitle = String(item.variant_title || '');
+        const variant = document.createElement('small'); variant.className = 'psc-cart-upsell-card__variant'; variant.textContent = variantTitle; variant.hidden = !variantTitle || variantTitle === 'Default Title';
+        const price = document.createElement('span'); price.className = 'psc-cart-upsell-card__price'; price.textContent = formatMoney(item.price_cents);
         const add = document.createElement('button'); add.type = 'button'; add.className = 'psc-cart-upsell-add'; add.textContent = '+ Add';
         if (upsellLimitReached(cart, numericId(item.variant_id), configuration)) {
           add.disabled = true;
-          add.textContent = `Max ${upsellVariantQuantity(cart, numericId(item.variant_id))} added`;
+          add.textContent = 'Max added';
+          add.title = `${upsellVariantQuantity(cart, numericId(item.variant_id))} already added`;
         }
         add.addEventListener('click', async () => {
           if (configuration.upsell_variant_behavior === 'product_popup' || item.variants.filter((variant) => variant.available).length > 1) {openProduct(item, cart, configuration.upsell_variant_behavior === 'variant_popup'); return;}
           add.disabled = true; try {await addVariant(numericId(item.variant_id), cart);} catch (error) {showNotice(error.message, true); add.disabled = false;}
         });
-        card.append(name, price, add); list.append(card);
+        const details = document.createElement('span'); details.className = 'psc-cart-upsell-card__details'; details.append(name, variant);
+        const actions = document.createElement('span'); actions.className = 'psc-cart-upsell-card__actions'; actions.append(price, add);
+        card.append(media, details, actions); list.append(card);
       });
       host.append(title, list); host.hidden = false;
     };

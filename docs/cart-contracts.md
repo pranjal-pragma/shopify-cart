@@ -21,6 +21,10 @@ and Shopify Discount Function. Change them together.
 - `pragma-site-cart-upsell.js`: AI and rule-based recommendation rendering and cart mutations.
 - `pragma-site-cart.css`: all storefront drawer styling.
 
+The upsell recommendation section is appended inside `[data-psc-content]`, after the cart lines.
+It must remain in that scrollable content container rather than becoming a direct child of the
+named drawer grid; direct grid children without an assigned area can be squeezed out of view.
+
 ## Browser API and events
 
 The public API is available as `window.pragmaSiteCart` after initialization. It exposes the root,

@@ -93,10 +93,6 @@ export function CartUpsellPage({previewMode}: {previewMode: boolean}) {
   return <div className="appearance-page">
     <header className="appearance-header">
       <div><p className="eyebrow">Cart experience</p><h1>Cart upsell</h1><p>Recommend relevant products and recalculate suggestions as the cart changes.</p></div>
-      <div className="appearance-header__actions">
-        <button className="button button--secondary" type="button" disabled={!dirty} onClick={() => {setConfiguration(copy(saved)); setMessage('');}}><RotateCcw size={16} />Discard</button>
-        <button className="button button--primary" type="button" disabled={!dirty || saving || previewMode} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>
-      </div>
     </header>
     {message && <p className="appearance-message" role="status">{message}</p>}
     <div className="appearance-workspace"><div className="appearance-editor">
@@ -150,13 +146,14 @@ export function CartUpsellPage({previewMode}: {previewMode: boolean}) {
         <button className="button button--secondary" type="button" disabled={configuration.upsell_rules.length >= 20} onClick={() => update('upsell_rules', [...configuration.upsell_rules, newRule()])}><Plus size={16} />Add rule</button>
       </Section>
     </div>
-    <aside className="cart-preview" aria-label="Cart preview"><div className="cart-preview__label"><Sparkles size={15} />Live preview</div>
+    <div className="preview-column"><div className="preview-column__heading"><span>Live preview</span><small>Cart recommendations</small></div><aside className="cart-preview" aria-label="Cart preview"><div className="cart-preview__label"><Sparkles size={15} />Recommendation preview</div>
       {!configuration.upsell_enabled ? <div className="upsell-preview upsell-preview--empty"><strong>Cart upsells are disabled</strong><small>Enable cart upsells to publish recommendations.</small></div> : <div className="upsell-preview" style={{background: previewBackground, color: previewColor}}>
         <strong style={{fontSize: previewTitle.font_size, fontWeight: previewTitle.bold ? 700 : 600, fontStyle: previewTitle.italic ? 'italic' : undefined, textDecoration: previewTitle.underline ? 'underline' : undefined}}>{previewTitle.text}</strong>
         <div>{previewItems.map((item) => <article key={'variant_id' in item ? item.variant_id : item.product_title}>{item.image_url ? <img className="upsell-preview__image" src={item.image_url} alt="" /> : <span className="upsell-preview__image" />}<b>{item.product_title}</b><small>{item.price ? `Rs. ${item.price}` : 'Price from Shopify'}</small><button type="button" disabled>+ Add</button></article>)}</div>
       </div>}
       <p className="preview-note">Preview controls are intentionally disabled.</p>
-    </aside></div>
+    </aside></div></div>
+    {dirty && <div className="save-bar" role="region" aria-label="Unsaved changes"><span>Unsaved changes</span><div><button className="button button--secondary" type="button" onClick={() => {setConfiguration(copy(saved)); setMessage('');}}><RotateCcw size={16} />Discard</button><button className="button button--primary" type="button" disabled={saving || previewMode} onClick={save}>{saving ? 'Saving...' : 'Save'}</button></div></div>}
   </div>;
 }
 
