@@ -17,6 +17,7 @@ import {checkoutDestination} from './checkout-destination.js';
     const cartUrl = root.dataset.cartUrl || `${routesRoot}cart`;
     const cartAddUrl = root.dataset.cartAddUrl || `${routesRoot}cart/add`;
     const cartChangeUrl = root.dataset.cartChangeUrl || `${routesRoot}cart/change`;
+    const cartUpdateUrl = `${routesRoot}cart/update`;
     const currency = root.dataset.currency || window.Shopify?.currency?.active || 'USD';
     const confirmation = root.querySelector('[data-psc-confirmation]');
     const stickyCart = root.querySelector('[data-psc-sticky-cart]');
@@ -44,6 +45,15 @@ import {checkoutDestination} from './checkout-destination.js';
     const modalPrice = root.querySelector('[data-psc-modal-price]');
     const modalDescription = root.querySelector('[data-psc-modal-description]');
     const modalLink = root.querySelector('[data-psc-modal-link]');
+    const checkoutOnCart = root.querySelector('[data-psc-checkout-on-cart]');
+    const loginBanner = root.querySelector('[data-psc-login-banner]');
+    const loginBannerText = root.querySelector('[data-psc-login-banner-text]');
+    const customerPanel = root.querySelector('[data-psc-customer-panel]');
+    const personalisation = root.querySelector('[data-psc-personalisation]');
+    const addressField = root.querySelector('[data-psc-address-field]');
+    const addressSelect = root.querySelector('[data-psc-address-select]');
+    const addressSummary = root.querySelector('[data-psc-address-summary]');
+    const customerJson = root.querySelector('[data-psc-customer-json]');
     const productCache = new Map();
     const blockCartPageRedirection = configuration.block_cart_page_redirection !== false;
     const variantSelectionEnabled = configuration.variant_selection_enabled !== false;
@@ -75,6 +85,14 @@ import {checkoutDestination} from './checkout-destination.js';
     let cart = null;
     let submitTimer = null;
     let confirmationTimer = null;
+    let selectedAddressId = null;
+    let addressSaveController = null;
+    let customer = {logged_in: false, addresses: []};
+    try {
+      customer = JSON.parse(customerJson?.textContent || '{"logged_in":false,"addresses":[]}');
+    } catch (error) {
+      console.error('[pragma-site-cart] Unable to read customer checkout data', error);
+    }
 
     const formatMoney = (cents) => {
       try {
@@ -97,6 +115,14 @@ import {checkoutDestination} from './checkout-destination.js';
     };
 
     const isTruthy = (value) => value === true || ['true', '1', 'yes'].includes(String(value).toLowerCase());
+    const addressLabel = (address) => address.name && address.summary && address.name !== address.summary
+      ? `${address.name} - ${address.summary}`
+      : address.summary || address.name || 'Saved address';
+    const selectedAddress = () => (customer.addresses || []).find((address) => String(address.id) === String(selectedAddressId));
+    const renderTemplate = (template) => String(template || '').replace(
+      /\{(first_name|last_name|name|phone_number|email)\}/g,
+      (_match, key) => customer[key] || '',
+    ).replace(/\s+/g, ' ').trim();
     const matchesSelector = (element, selector) => {
       try {
         return Boolean(element.closest(selector));
@@ -226,7 +252,93 @@ import {checkoutDestination} from './checkout-destination.js';
       });
     }
 
+    const saveSelectedAddress = async () => {
+      const address = selectedAddress();
+      if (!address) return;
+      addressSaveController?.abort();
+      addressSaveController = new AbortController();
+      try {
+        const response = await nativeFetch(`${cartUpdateUrl}.js`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+          credentials: 'same-origin',
+          signal: addressSaveController.signal,
+          body: JSON.stringify({
+            attributes: {
+              _pragma_site_cart_selected_address_id: String(address.id),
+              'Delivery address': address.summary || addressLabel(address),
+            },
+          }),
+        });
+        if (!response.ok) throw new Error(`Address update failed (${response.status})`);
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        console.error('[pragma-site-cart] Unable to save selected address', error);
+        notice.textContent = 'Your selected address could not be saved. You can still continue to checkout.';
+        notice.hidden = false;
+        notice.classList.add('psc-cart-notice--error');
+      }
+    };
+
+    const placeCheckoutOnCart = () => {
+      if (!checkoutOnCart) return;
+      if (configuration.checkout_address_placement === 'bottom') {
+        checkoutOnCart.classList.add('psc-cart-checkout-on-cart--bottom');
+        checkoutOnCart.classList.remove('psc-cart-checkout-on-cart--top');
+        checkoutOnCart.parentElement?.insertBefore(checkoutOnCart, footer);
+      } else {
+        checkoutOnCart.classList.add('psc-cart-checkout-on-cart--top');
+        checkoutOnCart.classList.remove('psc-cart-checkout-on-cart--bottom');
+        checkoutOnCart.parentElement?.insertBefore(checkoutOnCart, content);
+      }
+    };
+
+    const renderCheckoutOnCart = (nextCart) => {
+      if (!checkoutOnCart) return;
+      const enabled = configuration.checkout_on_cart_enabled === true && nextCart.item_count > 0;
+      checkoutOnCart.hidden = !enabled;
+      if (!enabled) return;
+      placeCheckoutOnCart();
+
+      const loggedIn = customer.logged_in === true;
+      loginBanner.hidden = loggedIn || configuration.checkout_login_banner_enabled !== true;
+      loginBannerText.textContent = configuration.checkout_login_banner_text || 'Log in to continue checkout.';
+      customerPanel.hidden = !loggedIn;
+      if (!loggedIn) return;
+
+      personalisation.textContent = renderTemplate(configuration.checkout_personalisation_message);
+      const addresses = Array.isArray(customer.addresses) ? customer.addresses : [];
+      const cartAddressId = nextCart.attributes?._pragma_site_cart_selected_address_id;
+      selectedAddressId = selectedAddressId || cartAddressId || addresses.find((address) => address.is_default)?.id || addresses[0]?.id || null;
+
+      addressField.hidden = addresses.length === 0;
+      addressSelect.replaceChildren(...addresses.map((address) => {
+        const option = document.createElement('option');
+        option.value = String(address.id);
+        option.textContent = addressLabel(address);
+        option.selected = String(address.id) === String(selectedAddressId);
+        return option;
+      }));
+
+      const address = selectedAddress();
+      addressSummary.hidden = !address;
+      addressSummary.textContent = address ? address.summary || addressLabel(address) : '';
+    };
+
+    addressSelect?.addEventListener('change', () => {
+      selectedAddressId = addressSelect.value;
+      const address = selectedAddress();
+      addressSummary.hidden = !address;
+      addressSummary.textContent = address ? address.summary || addressLabel(address) : '';
+      saveSelectedAddress();
+    });
+
     const updateCheckoutState = () => {
+      const loginRequired = Boolean(
+        configuration.checkout_on_cart_enabled
+        && configuration.checkout_guest_checkout_enabled !== true
+        && customer.logged_in !== true,
+      );
       const upsellOnly = Boolean(
         configuration.disable_checkout_for_upsell_only
         && cart?.items?.length
@@ -237,7 +349,9 @@ import {checkoutDestination} from './checkout-destination.js';
         && cart?.items?.length
         && cart.items.every((item) => isTruthy(item.properties?._pragma_site_cart_one_tick)),
       );
-      const reason = !termsAccepted
+      const reason = loginRequired
+        ? 'Log in to continue checkout.'
+        : !termsAccepted
         ? 'Accept the Terms & Conditions to continue.'
         : upsellOnly || oneTickOnly ? 'Add a regular product before checkout.' : '';
       checkout.classList.toggle('psc-cart-checkout-button--disabled', Boolean(reason));
@@ -380,6 +494,7 @@ import {checkoutDestination} from './checkout-destination.js';
       if (event.detail?.root !== root) return;
       cart = event.detail.cart;
       updateStickyCart(cart);
+      renderCheckoutOnCart(cart);
       updateCheckoutState();
       applyQuantityRules(cart);
       renderVariantSelectors(cart);

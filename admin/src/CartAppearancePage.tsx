@@ -136,6 +136,12 @@ export const defaultAppearance: CartAppearanceConfiguration = {
   terms_checkbox_enabled: false,
   terms_checkbox_text: 'I agree to the Terms & Conditions',
   terms_checkbox_url: '/policies/terms-of-service',
+  checkout_on_cart_enabled: true,
+  checkout_guest_checkout_enabled: false,
+  checkout_login_banner_enabled: true,
+  checkout_login_banner_text: 'Log in to use saved addresses and checkout faster.',
+  checkout_personalisation_message: 'Welcome back, {first_name}',
+  checkout_address_placement: 'top',
   product_quantity_limit_enabled: false,
   quantity_limit_variant_id: null,
   quantity_limit_variant_title: '',
@@ -620,6 +626,8 @@ function validate(configuration: CartAppearanceConfiguration): string | null {
   }
   if (configuration.terms_checkbox_enabled && !configuration.terms_checkbox_text.trim()) return 'Terms checkbox text cannot be empty.';
   if (configuration.terms_checkbox_enabled && !configuration.terms_checkbox_url.startsWith('/') && !/^https?:\/\//i.test(configuration.terms_checkbox_url)) return 'The terms link must be a store path or an HTTP(S) URL.';
+  if (configuration.checkout_on_cart_enabled && configuration.checkout_login_banner_enabled && !configuration.checkout_login_banner_text.trim()) return 'Login banner text cannot be empty.';
+  if (configuration.checkout_on_cart_enabled && !configuration.checkout_personalisation_message.trim()) return 'Personalisation message cannot be empty.';
   if (configuration.product_quantity_limit_enabled && !configuration.quantity_limit_variant_id) return 'Select a product variant for the quantity limit.';
   return null;
 }

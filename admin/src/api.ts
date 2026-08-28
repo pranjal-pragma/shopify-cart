@@ -96,6 +96,12 @@ export interface CartAppearanceConfiguration {
   terms_checkbox_enabled: boolean;
   terms_checkbox_text: string;
   terms_checkbox_url: string;
+  checkout_on_cart_enabled: boolean;
+  checkout_guest_checkout_enabled: boolean;
+  checkout_login_banner_enabled: boolean;
+  checkout_login_banner_text: string;
+  checkout_personalisation_message: string;
+  checkout_address_placement: 'top' | 'bottom';
   product_quantity_limit_enabled: boolean;
   quantity_limit_variant_id: string | null;
   quantity_limit_variant_title: string;

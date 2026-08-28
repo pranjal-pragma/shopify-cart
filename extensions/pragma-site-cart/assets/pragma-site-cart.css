@@ -712,6 +712,95 @@
   margin: 5px 0 14px;
 }
 
+.psc-cart-checkout-on-cart {
+  border-bottom: 1px solid var(--psc-cart-border);
+  display: grid;
+  gap: 10px;
+  padding: 12px 18px;
+}
+
+.psc-cart-checkout-on-cart--bottom {
+  border-bottom: 0;
+  border-top: 1px solid var(--psc-cart-border);
+}
+
+.psc-cart-checkout-on-cart[hidden],
+.psc-cart-login-banner[hidden],
+.psc-cart-customer-panel[hidden],
+.psc-cart-address-field[hidden],
+.psc-cart-address-summary[hidden] {
+  display: none;
+}
+
+.psc-cart-login-banner {
+  align-items: center;
+  background: #fff7e8;
+  border: 1px solid #efd8ad;
+  border-radius: 7px;
+  color: #69470e;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px;
+}
+
+.psc-cart-login-banner span {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.psc-cart-login-banner a,
+.psc-cart-address-link {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.psc-cart-customer-panel {
+  background: #f7f8f9;
+  border: 1px solid #e1e3e7;
+  border-radius: 7px;
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+}
+
+.psc-cart-customer-panel p {
+  margin: 0;
+}
+
+.psc-cart-customer-panel [data-psc-personalisation] {
+  color: #2c2e34;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.psc-cart-address-field {
+  display: grid;
+  gap: 6px;
+}
+
+.psc-cart-address-field span,
+.psc-cart-address-summary {
+  color: var(--psc-cart-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.psc-cart-address-field select {
+  background: #ffffff;
+  border: 1px solid #cfd1d5;
+  border-radius: 6px;
+  color: #2c2e34;
+  font: inherit;
+  font-size: 12px;
+  min-height: 36px;
+  padding: 7px 9px;
+  width: 100%;
+}
+
 .psc-cart-terms {
   align-items: flex-start;
   color: var(--psc-cart-muted);
@@ -1389,3 +1478,4 @@
 .psc-cart-upsell-dialog__panel { background: #fff; border-radius: 8px; color: #202124; display: grid; gap: 14px; max-height: 85vh; max-width: 420px; overflow: auto; padding: 24px; position: relative; width: 100%; }
 .psc-cart-upsell-dialog__close { background: none; border: 0; cursor: pointer; font-size: 28px; position: absolute; right: 10px; top: 6px; }
 .psc-cart-upsell-dialog h3, .psc-cart-upsell-dialog p { margin: 0; }
+.psc-cart-upsell-dialog select { border: 1px solid #b8bdc3; border-radius: 5px; min-height: 42px; padding: 8px; width: 100%; }

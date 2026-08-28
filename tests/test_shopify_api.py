@@ -164,6 +164,14 @@ async def test_cart_appearance_defaults_and_persists_per_shop(
     assert configuration["scarcity_sale_starts_at"] is None
     assert configuration["scarcity_sale_ends_at"] is None
     assert configuration["block_cart_page_redirection"] is True
+    assert configuration["checkout_on_cart_enabled"] is True
+    assert configuration["checkout_guest_checkout_enabled"] is False
+    assert configuration["checkout_login_banner_enabled"] is True
+    assert configuration["checkout_login_banner_text"] == (
+        "Log in to use saved addresses and checkout faster."
+    )
+    assert configuration["checkout_personalisation_message"] == "Welcome back, {first_name}"
+    assert configuration["checkout_address_placement"] == "top"
     assert configuration["variant_selection_enabled"] is True
     assert configuration["updated_at"] is None
 
@@ -174,6 +182,8 @@ async def test_cart_appearance_defaults_and_persists_per_shop(
     configuration["confirmation_background"] = "#146B4A"
     configuration["confirmation_text_color"] = "#FFF9E8"
     configuration["custom_cart_icon_selectors"] = [".header-cart"]
+    configuration["checkout_guest_checkout_enabled"] = True
+    configuration["checkout_address_placement"] = "bottom"
     saved_response = await client.put(
         "/api/v1/shopify/appearance", headers=first_headers, json=configuration
     )
@@ -187,6 +197,8 @@ async def test_cart_appearance_defaults_and_persists_per_shop(
     assert reloaded.json()["confirmation_background"] == "#146B4A"
     assert reloaded.json()["confirmation_text_color"] == "#FFF9E8"
     assert reloaded.json()["custom_cart_icon_selectors"] == [".header-cart"]
+    assert reloaded.json()["checkout_guest_checkout_enabled"] is True
+    assert reloaded.json()["checkout_address_placement"] == "bottom"
 
     second_headers = {
         "Authorization": f"Bearer {make_session_token(settings, 'second.myshopify.com')}"

@@ -17,6 +17,7 @@ import {useCallback, useEffect, useState} from 'react';
 
 import {connectMerchant, type Merchant} from './api';
 import {CartAppearancePage} from './CartAppearancePage';
+import {CartCheckoutPage} from './CartCheckoutPage';
 import {CartFeaturesPage} from './CartFeaturesPage';
 import {CartUpsellPage} from './CartUpsellPage';
 import './styles.css';
@@ -70,8 +71,9 @@ function AppShell({children, pageId = 'home'}: {children: React.ReactNode; pageI
         <s-link href="/appearance">Cart appearance</s-link>
         <s-link href="/features">Cart features</s-link>
         <s-link href="/upsell">Cart upsell</s-link>
+        <s-link href="/checkout">Checkout</s-link>
       </s-app-nav>
-      <main className={`page${pageId === 'appearance' || pageId === 'features' || pageId === 'upsell' ? ' page--appearance' : ''}`} id={pageId}>
+      <main className={`page${['appearance', 'features', 'upsell', 'checkout'].includes(pageId) ? ' page--appearance' : ''}`} id={pageId}>
         {children}
       </main>
     </div>
@@ -277,6 +279,9 @@ export default function App() {
   }
   if (route === '/upsell') {
     return <AppShell pageId="upsell"><CartUpsellPage previewMode={Boolean(previewMerchant)} /></AppShell>;
+  }
+  if (route === '/checkout') {
+    return <AppShell pageId="checkout"><CartCheckoutPage previewMode={Boolean(previewMerchant)} /></AppShell>;
   }
   return <HomePage merchant={merchant} />;
 }

@@ -381,6 +381,16 @@ class CartAppearanceConfiguration(BaseModel):
         default="I agree to the Terms & Conditions", min_length=1, max_length=160
     )
     terms_checkbox_url: str = Field(default="/policies/terms-of-service", max_length=2048)
+    checkout_on_cart_enabled: bool = True
+    checkout_guest_checkout_enabled: bool = False
+    checkout_login_banner_enabled: bool = True
+    checkout_login_banner_text: str = Field(
+        default="Log in to use saved addresses and checkout faster.", min_length=1, max_length=160
+    )
+    checkout_personalisation_message: str = Field(
+        default="Welcome back, {first_name}", min_length=1, max_length=200
+    )
+    checkout_address_placement: Literal["top", "bottom"] = "top"
     product_quantity_limit_enabled: bool = False
     quantity_limit_variant_id: str | None = Field(
         default=None, pattern=r"^gid://shopify/ProductVariant/[0-9]+$"
@@ -447,6 +457,11 @@ class CartAppearanceConfiguration(BaseModel):
             for selector in self.custom_cart_drawer_selectors
         ):
             raise ValueError("custom drawer selectors cannot target the document root")
+        if self.checkout_on_cart_enabled:
+            if self.checkout_login_banner_enabled and not self.checkout_login_banner_text.strip():
+                raise ValueError("login banner text cannot be empty")
+            if not self.checkout_personalisation_message.strip():
+                raise ValueError("personalisation message cannot be empty")
         if self.product_quantity_limit_enabled and self.quantity_limit_variant_id is None:
             raise ValueError("select a product variant before enabling its quantity limit")
         if self.scarcity_timer_enabled:

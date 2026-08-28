@@ -55,6 +55,26 @@
 
     <div class="psc-cart-notice" role="status" aria-live="polite" data-psc-notice></div>
 
+    <section class="psc-cart-checkout-on-cart" data-psc-checkout-on-cart hidden>
+      <div class="psc-cart-login-banner" data-psc-login-banner hidden>
+        <span data-psc-login-banner-text></span>
+        <a href="{{ routes.account_login_url | default: '/account/login' }}?return_url={{ routes.cart_url | url_encode }}" data-psc-login-link>
+          Log in
+        </a>
+      </div>
+      <div class="psc-cart-customer-panel" data-psc-customer-panel hidden>
+        <p data-psc-personalisation></p>
+        <label class="psc-cart-address-field" data-psc-address-field hidden>
+          <span>Delivery address</span>
+          <select data-psc-address-select aria-label="Delivery address"></select>
+        </label>
+        <p class="psc-cart-address-summary" data-psc-address-summary hidden></p>
+        <a class="psc-cart-address-link" href="{{ routes.account_addresses_url | default: '/account/addresses' }}" data-psc-address-link>
+          Manage addresses
+        </a>
+      </div>
+    </section>
+
     <div class="psc-cart-content" data-psc-content>
       <div class="psc-cart-loading" data-psc-loading>
         <span class="psc-cart-spinner" aria-hidden="true"></span>
@@ -102,6 +122,31 @@
       <p class="psc-cart-footer-message" data-psc-footer-message hidden></p>
     </footer>
   </aside>
+
+  <script type="application/json" data-psc-customer-json>
+    {% if customer %}
+      {
+        "logged_in": true,
+        "first_name": {{ customer.first_name | default: '' | json }},
+        "last_name": {{ customer.last_name | default: '' | json }},
+        "name": {{ customer.name | default: '' | json }},
+        "phone_number": {{ customer.phone | default: '' | json }},
+        "email": {{ customer.email | default: '' | json }},
+        "addresses": [
+          {% for address in customer.addresses %}
+            {
+              "id": {{ address.id | json }},
+              "name": {{ address.name | default: address.address1 | json }},
+              "summary": {{ address | format_address | strip_html | strip_newlines | strip | json }},
+              "is_default": {% if customer.default_address and address.id == customer.default_address.id %}true{% else %}false{% endif %}
+            }{% unless forloop.last %},{% endunless %}
+          {% endfor %}
+        ]
+      }
+    {% else %}
+      {"logged_in": false, "addresses": []}
+    {% endif %}
+  </script>
 
   <button class="psc-cart-sticky" type="button" data-psc-sticky-cart hidden>
     <span><span class="psc-cart-sticky-icon" aria-hidden="true"></span><span data-psc-sticky-count>0 items</span></span>
