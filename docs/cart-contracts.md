@@ -234,6 +234,10 @@ other feature saves.
 ## Configuration naming
 
 - The app-provided font source value is `pragma-site-cart`; `theme` selects storefront fonts.
+- Customer-facing branding uses `Pragma Site Cart`. Legacy third-party footer branding is migrated
+  when the appearance configuration is loaded or saved and republished. Legacy custom-script API,
+  event, and selector names are migrated to the supported `pragmaSiteCart`,
+  `pragma-site-cart:cart:*`, and `data-psc-*` contracts.
 - The checkout configuration field is `pragma_site_cart_checkout`.
 - Appearance and feature fields are validated with `extra="forbid"`; add fields to both Pydantic
   and TypeScript contracts before using them.

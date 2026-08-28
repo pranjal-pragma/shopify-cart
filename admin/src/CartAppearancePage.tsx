@@ -102,7 +102,7 @@ export const defaultAppearance: CartAppearanceConfiguration = {
   show_estimated_total_breakup: true,
   footer_enabled: true,
   footer_text_color: '#676A72',
-  footer_text: defaultRichText('Secure checkout powered by pragma-site-cart', 12),
+  footer_text: defaultRichText('Secure checkout powered by Pragma Site Cart', 12),
   footer_alignment: 'left',
   custom_script: '',
   add_to_cart_behavior: 'nothing',

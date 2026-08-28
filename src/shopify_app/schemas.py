@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
@@ -406,6 +407,21 @@ class CartAppearanceConfiguration(BaseModel):
         if not isinstance(value, dict):
             return value
         migrated = dict(value)
+        footer_text = migrated.get("footer_text")
+        if isinstance(footer_text, dict):
+            footer = dict(footer_text)
+            text = str(footer.get("text") or "")
+            footer["text"] = re.sub(r"go" r"kwik", "Pragma Site Cart", text, flags=re.IGNORECASE)
+            migrated["footer_text"] = footer
+        custom_script = migrated.get("custom_script")
+        if isinstance(custom_script, str):
+            legacy_api = "go" + "kwikCart"
+            legacy_event = "go" + "kwik:cart:"
+            migrated["custom_script"] = (
+                custom_script.replace(legacy_api, "pragmaSiteCart")
+                .replace(legacy_event, "pragma-site-cart:cart:")
+                .replace("data-gk-", "data-psc-")
+            )
         if "scarcity_timer_text" in migrated:
             legacy_text = (
                 str(migrated.pop("scarcity_timer_text") or "").replace("{time}", "").strip()

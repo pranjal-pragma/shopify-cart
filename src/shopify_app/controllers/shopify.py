@@ -96,7 +96,7 @@ def default_cart_appearance() -> CartAppearanceConfiguration:
             "checkout_text": {"text": "Proceed to checkout", "bold": True, "font_size": 16},
             "checkout_subtext": {"text": "Safe and secure checkout", "font_size": 12},
             "footer_text": {
-                "text": "Secure checkout powered by pragma-site-cart",
+                "text": "Secure checkout powered by Pragma Site Cart",
                 "font_size": 12,
             },
         }

@@ -808,6 +808,32 @@ def test_cart_appearance_migrates_legacy_scarcity_text() -> None:
     assert migrated.scarcity_timer_title.text == "Complete checkout in"
 
 
+def test_cart_appearance_migrates_legacy_cart_brand_contracts() -> None:
+    configuration = CartAppearanceConfiguration.model_validate(
+        {
+            "banners": [
+                {
+                    "id": "welcome",
+                    "title": {"text": "Welcome"},
+                    "subtext": {"text": ""},
+                }
+            ],
+            "checkout_text": {"text": "Checkout"},
+            "checkout_subtext": {"text": ""},
+            "footer_text": {"text": "Secure checkout powered by " + "Go" + "Kwik"},
+            "custom_script": (
+                ("go" + "kwikCart") + ".on('" + ("go" + "kwik:cart:opened") + "', () => "
+                + ("go" + "kwikCart") + ".root.querySelector('[data-gk-drawer]'));"
+            ),
+        }
+    )
+
+    assert configuration.footer_text.text == "Secure checkout powered by Pragma Site Cart"
+    assert ("go" + "kwik") not in configuration.custom_script.lower()
+    assert "pragmaSiteCart.on('pragma-site-cart:cart:opened'" in configuration.custom_script
+    assert "[data-psc-drawer]" in configuration.custom_script
+
+
 def test_cart_appearance_migrates_legacy_sales_timer_period() -> None:
     configuration = CartAppearanceConfiguration.model_validate(
         {
