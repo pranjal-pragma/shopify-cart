@@ -8,6 +8,11 @@ import {
 
 import {rewardMetric} from './reward-metric.js';
 import {isOneTickItem, oneTickSkuRuleState} from './one-tick-rules.js';
+import {
+  matchingSwapRule,
+  shouldShowOneTickOffers,
+  sizeGroupCandidates,
+} from './product-swap-rules.js';
 
 (() => {
   const initialize = (api) => {
@@ -382,6 +387,7 @@ import {isOneTickItem, oneTickSkuRuleState} from './one-tick-rules.js';
       host.append(block);
     };
     const renderOneTick = (cart) => {
+      if (!shouldShowOneTickOffers(configuration)) return;
       if (configuration.one_tick_enabled && configuration.one_tick_variant_id) {
         const existing = cart.items.map((item, index) => ({item, line: index + 1})).find(
           ({item}) => isOneTickItem(item) && !item.properties?._pragma_site_cart_one_tick_rule,
@@ -467,20 +473,24 @@ import {isOneTickItem, oneTickSkuRuleState} from './one-tick-rules.js';
       return productCache.get(handle);
     };
     const swapTargetFor = async (item) => {
-      const manual = (configuration.product_swap_rules || []).find((rule) => {
-        if (!rule.enabled || rule.trigger_scope !== 'product') return false;
-        const trigger = numericId(rule.trigger_id);
-        return trigger === Number(item.product_id) || trigger === Number(item.variant_id);
-      });
+      const manual = matchingSwapRule(item, configuration.product_swap_rules);
       if (manual) return {variantId: manual.target_variant_id, label: manual.pill_label};
-      const group = (configuration.product_swap_size_groups || []).find((candidate) => candidate.variant_ids.some((id) => numericId(id) === Number(item.variant_id)));
-      if (group) {
-        const index = group.variant_ids.findIndex((id) => numericId(id) === Number(item.variant_id));
-        if (index >= 0 && index < group.variant_ids.length - 1) return {variantId: group.variant_ids[index + 1], label: `Upgrade to ${group.variant_titles[index + 1]}`};
+      const currentPrice = Number(item.original_price || item.final_price);
+      for (const candidate of sizeGroupCandidates(item, configuration.product_swap_size_groups)) {
+        if (!candidate.handle) {
+          return {variantId: candidate.variantId, label: `Upgrade to ${candidate.productTitle}`};
+        }
+        const product = await loadProduct(candidate.handle);
+        const configuredVariantId = numericId(candidate.variantId);
+        const variant = product?.variants?.find((option) => (
+          Number(option.id) === configuredVariantId && option.available
+        ));
+        if (variant && Number(variant.price) > currentPrice) {
+          return {variantId: String(variant.id), label: `Upgrade to ${candidate.productTitle}`};
+        }
       }
       if (!configuration.product_swap_automatic_upgrade || !item.handle) return null;
       const product = await loadProduct(item.handle);
-      const currentPrice = Number(item.original_price || item.final_price);
       const next = product?.variants?.filter((variant) => variant.available && Number(variant.price) > currentPrice).sort((left, right) => Number(left.price) - Number(right.price))[0];
       return next ? {variantId: String(next.id), label: `Upgrade to ${next.title}`} : null;
     };

@@ -235,6 +235,7 @@ class ProductSwapRule(BaseModel):
     trigger_scope: Literal["product", "collection"] = "product"
     trigger_id: str = Field(min_length=1, max_length=255)
     trigger_title: str = Field(min_length=1, max_length=200)
+    trigger_product_ids: list[str] = Field(default_factory=list, max_length=250)
     use_case: Literal["size_upgrade", "alternative", "multipack"] = "size_upgrade"
     target_variant_id: str = Field(pattern=r"^gid://shopify/ProductVariant/[0-9]+$")
     target_variant_title: str = Field(min_length=1, max_length=200)
@@ -247,13 +248,31 @@ class ProductSwapSizeGroup(BaseModel):
 
     id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
     title: str = Field(min_length=1, max_length=80)
-    variant_ids: list[str] = Field(default_factory=list, min_length=2, max_length=20)
-    variant_titles: list[str] = Field(default_factory=list, min_length=2, max_length=20)
+    product_ids: list[str] = Field(default_factory=list, max_length=20)
+    product_titles: list[str] = Field(default_factory=list, max_length=20)
+    product_handles: list[str] = Field(default_factory=list, max_length=20)
+    variant_ids: list[str] = Field(default_factory=list, max_length=20)
+    variant_titles: list[str] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def validate_ladder(self) -> ProductSwapSizeGroup:
-        if len(self.variant_ids) != len(self.variant_titles):
-            raise ValueError("size group variant IDs and titles must align")
+        lengths = {
+            len(self.product_ids),
+            len(self.product_titles),
+            len(self.product_handles),
+            len(self.variant_ids),
+            len(self.variant_titles),
+        }
+        if self.product_ids and len(lengths) != 1:
+            raise ValueError("size group product and variant details must align")
+        if self.product_ids and len(self.product_ids) < 2:
+            raise ValueError("size groups require at least two products")
+        if not self.product_ids and len(self.variant_ids) != len(self.variant_titles):
+            raise ValueError("legacy size group variant IDs and titles must align")
+        if not self.product_ids and len(self.variant_ids) < 2:
+            raise ValueError("size groups require at least two rungs")
+        if len(set(self.product_ids)) != len(self.product_ids):
+            raise ValueError("size group products must be unique")
         if len(set(self.variant_ids)) != len(self.variant_ids):
             raise ValueError("size group variants must be unique")
         return self
@@ -562,13 +581,13 @@ class CartFeaturesConfiguration(BaseModel):
         groups.extend(group.id for group in self.product_swap_size_groups)
         if len(groups) != len(set(groups)):
             raise ValueError("feature item identifiers must be unique")
-        grouped_variants = [
-            variant_id
+        grouped_products = [
+            product_id
             for group in self.product_swap_size_groups
-            for variant_id in group.variant_ids
+            for product_id in (group.product_ids or group.variant_ids)
         ]
-        if len(grouped_variants) != len(set(grouped_variants)):
-            raise ValueError("a product variant can belong to only one size group")
+        if len(grouped_products) != len(set(grouped_products)):
+            raise ValueError("a product can belong to only one size group")
         return self
 
 

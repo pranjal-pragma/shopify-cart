@@ -172,6 +172,7 @@ export interface ProductSwapRule {
   trigger_scope: 'product' | 'collection';
   trigger_id: string;
   trigger_title: string;
+  trigger_product_ids: string[];
   use_case: 'size_upgrade' | 'alternative' | 'multipack';
   target_variant_id: string;
   target_variant_title: string;
@@ -182,6 +183,9 @@ export interface ProductSwapRule {
 export interface ProductSwapSizeGroup {
   id: string;
   title: string;
+  product_ids: string[];
+  product_titles: string[];
+  product_handles: string[];
   variant_ids: string[];
   variant_titles: string[];
 }

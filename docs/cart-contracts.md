@@ -133,6 +133,13 @@ stores selected resource IDs and titles plus one product-ID snapshot per resourc
 counts only matching cart lines toward scoped reward goals; reselect a collection after changing
 its membership so the published snapshot stays current.
 
+Product swap manual rules also persist a product-ID snapshot. Direct-product rules are migrated
+from their trigger ID; collection rules use the membership returned by the resource picker, so
+reselect a collection after changing its products. Size groups are ordered ladders of separate
+products, not variants of one product. Each rung stores the product ID, title, handle, and selected
+variant. A product can belong to only one ladder. At runtime the drawer checks larger rungs in order
+and offers the first configured variant that is available and priced above the current cart line.
+
 `upsell_variant_behavior=variant_popup` opens option selection when a recommendation has multiple
 available variants. `product_popup` always opens a details dialog. Added lines carry
 `_pragma_site_cart_upsell=true`, and `upsell_cap_quantity` limits quantities added through the

@@ -45,6 +45,83 @@ def test_legacy_sku_upsell_without_rules_migrates_to_disabled() -> None:
     assert configuration.one_tick_sku_rules == []
 
 
+def test_legacy_product_swap_rule_migrates_its_product_snapshot() -> None:
+    configuration = validated_cart_features_section(
+        {
+            "product_swap_rules": [
+                {
+                    "id": "larger_board",
+                    "trigger_id": "gid://shopify/Product/101",
+                    "trigger_title": "Small board",
+                    "target_variant_id": "gid://shopify/ProductVariant/202",
+                    "target_variant_title": "Large board / Default",
+                    "pill_label": "Choose a larger size",
+                }
+            ]
+        }
+    )
+
+    assert configuration.product_swap_rules[0].trigger_product_ids == [
+        "gid://shopify/Product/101"
+    ]
+
+
+def test_product_swap_size_group_accepts_an_ordered_product_ladder() -> None:
+    configuration = CartFeaturesConfiguration.model_validate(
+        {
+            "product_swap_size_groups": [
+                {
+                    "id": "board_sizes",
+                    "title": "Board sizes",
+                    "product_ids": [
+                        "gid://shopify/Product/101",
+                        "gid://shopify/Product/202",
+                    ],
+                    "product_titles": ["Small board", "Large board"],
+                    "product_handles": ["small-board", "large-board"],
+                    "variant_ids": [
+                        "gid://shopify/ProductVariant/1001",
+                        "gid://shopify/ProductVariant/2002",
+                    ],
+                    "variant_titles": ["Default", "Default"],
+                }
+            ]
+        }
+    )
+
+    assert configuration.product_swap_size_groups[0].product_handles == [
+        "small-board",
+        "large-board",
+    ]
+
+
+def test_product_cannot_belong_to_multiple_swap_size_groups() -> None:
+    group = {
+        "title": "Board sizes",
+        "product_ids": [
+            "gid://shopify/Product/101",
+            "gid://shopify/Product/202",
+        ],
+        "product_titles": ["Small board", "Large board"],
+        "product_handles": ["small-board", "large-board"],
+        "variant_ids": [
+            "gid://shopify/ProductVariant/1001",
+            "gid://shopify/ProductVariant/2002",
+        ],
+        "variant_titles": ["Default", "Default"],
+    }
+
+    with pytest.raises(ValidationError, match="only one size group"):
+        CartFeaturesConfiguration.model_validate(
+            {
+                "product_swap_size_groups": [
+                    {**group, "id": "board_sizes"},
+                    {**group, "id": "duplicate_board_sizes"},
+                ]
+            }
+        )
+
+
 def test_sku_upsell_rule_accepts_targeted_product_snapshots() -> None:
     configuration = CartFeaturesConfiguration.model_validate(
         {

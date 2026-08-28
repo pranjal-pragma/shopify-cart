@@ -1,4 +1,6 @@
 import {
+  ArrowDown,
+  ArrowUp,
   Bold,
   BadgePercent,
   ChevronDown,
@@ -119,6 +121,7 @@ const newSwapRule = (): ProductSwapRule => ({
   trigger_scope: 'product',
   trigger_id: '',
   trigger_title: '',
+  trigger_product_ids: [],
   use_case: 'size_upgrade',
   target_variant_id: '',
   target_variant_title: '',
@@ -129,9 +132,52 @@ const newSwapRule = (): ProductSwapRule => ({
 const newSizeGroup = (): ProductSwapSizeGroup => ({
   id: itemId(),
   title: 'Size ladder',
+  product_ids: [],
+  product_titles: [],
+  product_handles: [],
   variant_ids: [],
   variant_titles: [],
 });
+
+const sizeGroupFromProducts = (
+  group: ProductSwapSizeGroup,
+  products: ShopifyResource[],
+): ProductSwapSizeGroup => {
+  const rungs = products.flatMap((product) => {
+    const variant = product.variants?.[0];
+    return variant ? [{product, variant}] : [];
+  });
+  return {
+    ...group,
+    product_ids: rungs.map(({product}) => product.id),
+    product_titles: rungs.map(({product}) => product.title || product.displayName || product.id),
+    product_handles: rungs.map(({product}) => product.handle || ''),
+    variant_ids: rungs.map(({variant}) => variant.id),
+    variant_titles: rungs.map(({variant}) => variant.displayName || variant.title || variant.id),
+  };
+};
+
+const moveSizeGroupRung = (
+  group: ProductSwapSizeGroup,
+  from: number,
+  to: number,
+): ProductSwapSizeGroup => {
+  if (to < 0 || to >= group.product_ids.length) return group;
+  const move = (values: string[]) => {
+    const next = [...values];
+    const [value] = next.splice(from, 1);
+    next.splice(to, 0, value);
+    return next;
+  };
+  return {
+    ...group,
+    product_ids: move(group.product_ids),
+    product_titles: move(group.product_titles),
+    product_handles: move(group.product_handles),
+    variant_ids: move(group.variant_ids),
+    variant_titles: move(group.variant_titles),
+  };
+};
 
 export const defaultFeatures: CartFeaturesConfiguration = {
   discount_mode: 'discount_box',
@@ -198,12 +244,12 @@ async function pickResource(type: 'variant' | 'product' | 'collection', selected
   return selected?.[0] ?? null;
 }
 
-async function pickResources(type: 'product' | 'collection', selectedIds: string[]): Promise<ShopifyResource[]> {
+async function pickResources(type: 'product' | 'collection', selectedIds: string[], limit = 50): Promise<ShopifyResource[]> {
   if (!window.shopify?.resourcePicker) return [];
   return await window.shopify.resourcePicker({
     type,
     action: 'select',
-    multiple: 50,
+    multiple: limit,
     selectionIds: selectedIds.map((id) => ({id})),
   }) ?? [];
 }
@@ -302,6 +348,78 @@ function RewardFulfillmentFields({configuration, discounts, reward, onChange}: {
   return <div className="reward-binding">{reward.reward_type === 'free_gift' && <SelectField label="Free gift offer" value={reward.gift_offer_id || ''} disabled={!configuration.free_gifts_enabled || !configuration.free_gift_offers.length} helper={configuration.free_gifts_enabled ? 'The tier goal becomes the eligibility condition for this offer.' : 'Enable Free gifts and create an offer first.'} options={[{value: '', label: 'Select a gift offer'}, ...configuration.free_gift_offers.map((offer) => ({value: offer.id, label: offer.title}))]} onChange={(value) => { const offer = configuration.free_gift_offers.find((item) => item.id === value); onChange({...reward, gift_offer_id: value || null, gift_offer_title: offer?.title || '', discount_id: null, discount_title: '', discount_code: '', discount_classes: []}); }} />}{(shipping || reward.reward_type === 'discount') && <SelectField label={shipping ? 'Free shipping discount' : 'Shopify discount'} value={reward.discount_id || ''} disabled={!eligibleDiscounts.length} helper={eligibleDiscounts.length ? `Code discounts are applied by the cart; automatic discounts are applied by Shopify. Keep the Shopify minimum aligned with ${reward.goal}.` : `Create an active ${shipping ? 'free shipping' : 'order or product'} discount in Shopify first.`} options={[{value: '', label: 'Select an active discount'}, ...eligibleDiscounts.map((discount) => ({value: discount.id, label: discount.code ? `${discount.title} (${discount.code})` : `${discount.title} (Automatic)`}))]} onChange={(value) => { const discount = discounts.find((item) => item.id === value); onChange({...reward, gift_offer_id: null, gift_offer_title: '', discount_id: discount?.id || null, discount_title: discount?.title || '', discount_code: discount?.code || '', discount_classes: discount?.discount_classes || []}); }} />}{reward.reward_type === 'custom' && <p className="reward-binding__helper"><Sparkles size={15} />Custom milestones display progress and celebration only.</p>}</div>;
 }
 
+function ProductSwapEditor({configuration, previewMode, update}: {
+  configuration: CartFeaturesConfiguration;
+  previewMode: boolean;
+  update: Update;
+}) {
+  const setRule = (index: number, next: ProductSwapRule) => update(
+    'product_swap_rules',
+    configuration.product_swap_rules.map((rule, ruleIndex) => ruleIndex === index ? next : rule),
+  );
+  const setGroup = (index: number, next: ProductSwapSizeGroup) => update(
+    'product_swap_size_groups',
+    configuration.product_swap_size_groups.map((group, groupIndex) => groupIndex === index ? next : group),
+  );
+  const removeRung = (group: ProductSwapSizeGroup, rungIndex: number) => ({
+    ...group,
+    product_ids: group.product_ids.filter((_, index) => index !== rungIndex),
+    product_titles: group.product_titles.filter((_, index) => index !== rungIndex),
+    product_handles: group.product_handles.filter((_, index) => index !== rungIndex),
+    variant_ids: group.variant_ids.filter((_, index) => index !== rungIndex),
+    variant_titles: group.variant_titles.filter((_, index) => index !== rungIndex),
+  });
+
+  return <>
+    <Section title="Product swap" description="Offer a one-tap replacement with a larger size or better-value pack.">
+      <Toggle checked={configuration.product_swap_enabled} label="Enable" onChange={(value) => update('product_swap_enabled', value)} />
+      {configuration.product_swap_enabled && <div className="nested-settings">
+        <div className="field"><span>One-tick coexistence</span><ChoiceGroup name="Swap coexistence" columns={2} value={configuration.product_swap_coexistence} onChange={(value) => update('product_swap_coexistence', value as CartFeaturesConfiguration['product_swap_coexistence'])} options={[{value: 'swap', label: 'Show swap only'}, {value: 'upsell', label: 'Show upsell only'}]} /></div>
+        <Toggle checked={configuration.product_swap_automatic_upgrade} label="Automatic variant upgrade" description="Offer the next higher-priced in-stock variant of the same product when no manual rule or size ladder matches." onChange={(value) => update('product_swap_automatic_upgrade', value)} />
+      </div>}
+    </Section>
+
+    {configuration.product_swap_enabled && <Section title="Manual swap rules" description="Map a product or collection to a specific replacement variant.">
+      <div className="feature-item-list">{configuration.product_swap_rules.map((rule, index) => <div className="feature-item" key={rule.id}>
+        <ItemHeader title={`Rule ${index + 1}`} onRemove={() => update('product_swap_rules', configuration.product_swap_rules.filter((item) => item.id !== rule.id))} />
+        <Toggle checked={rule.enabled} label="Enabled" onChange={(value) => setRule(index, {...rule, enabled: value})} />
+        <SelectField label="Trigger scope" value={rule.trigger_scope} options={[{value: 'product', label: 'Specific product'}, {value: 'collection', label: 'Collection'}]} onChange={(value) => setRule(index, {...rule, trigger_scope: value as ProductSwapRule['trigger_scope'], trigger_id: '', trigger_title: '', trigger_product_ids: []})} />
+        <ResourceField label="Trigger" type={rule.trigger_scope} previewMode={previewMode} value={rule.trigger_id || null} title={rule.trigger_title} onChange={(resource) => setRule(index, {
+          ...rule,
+          trigger_id: resource?.id || '',
+          trigger_title: resource?.title || resource?.displayName || '',
+          trigger_product_ids: !resource ? [] : rule.trigger_scope === 'product'
+            ? [resource.id]
+            : (resource.products || []).map((product) => product.id),
+        })} />
+        <SelectField label="Use case" value={rule.use_case} options={[{value: 'size_upgrade', label: 'Size upgrade'}, {value: 'alternative', label: 'Alternative product'}, {value: 'multipack', label: 'Multipack / bundle'}]} onChange={(value) => setRule(index, {...rule, use_case: value as ProductSwapRule['use_case']})} />
+        <ResourceField label="Target variant" type="variant" previewMode={previewMode} value={rule.target_variant_id || null} title={rule.target_variant_title} onChange={(resource) => setRule(index, {...rule, target_variant_id: resource?.id || '', target_variant_title: resource?.displayName || resource?.title || ''})} />
+        <div className="field-grid"><Field label="Pill label" value={rule.pill_label} maxLength={40} onChange={(value) => setRule(index, {...rule, pill_label: value})} /><SelectField label="Nudge strategy" value={rule.nudge_strategy} options={[{value: 'automatic', label: 'Automatic'}, {value: 'mrp_discount', label: 'MRP discount'}, {value: 'custom', label: 'Custom claim'}]} onChange={(value) => setRule(index, {...rule, nudge_strategy: value as ProductSwapRule['nudge_strategy']})} /></div>
+      </div>)}</div>
+      <button className="text-button" type="button" disabled={configuration.product_swap_rules.length >= 20} onClick={() => update('product_swap_rules', [...configuration.product_swap_rules, newSwapRule()])}><Plus size={16} />Add swap rule</button>
+    </Section>}
+
+    {configuration.product_swap_enabled && <Section title="Size groups" description="Ordered ladders of separate products, from small to large. The drawer offers the next higher-priced in-stock rung, and a product can belong to only one group.">
+      <div className="feature-item-list">{configuration.product_swap_size_groups.map((group, index) => <div className="feature-item" key={group.id}>
+        <ItemHeader title={`Size group ${index + 1} · ${group.product_ids.length} rungs`} onRemove={() => update('product_swap_size_groups', configuration.product_swap_size_groups.filter((item) => item.id !== group.id))} />
+        <Field label="Ladder name" value={group.title} maxLength={80} onChange={(value) => setGroup(index, {...group, title: value})} />
+        <div className="field"><span>Rungs (small to large)</span><small>Reorder the selected products so each following row is the next upgrade.</small></div>
+        <ol className="size-group-list">{group.product_titles.map((title, rungIndex) => <li key={group.product_ids[rungIndex]}>
+          <span>{rungIndex + 1}</span>
+          <strong>{title}<small>{group.variant_titles[rungIndex]}</small></strong>
+          <div className="size-group-list__actions">
+            <button className="icon-button" type="button" disabled={rungIndex === 0} onClick={() => setGroup(index, moveSizeGroupRung(group, rungIndex, rungIndex - 1))} aria-label={`Move ${title} up`} title="Move up"><ArrowUp size={14} /></button>
+            <button className="icon-button" type="button" disabled={rungIndex === group.product_ids.length - 1} onClick={() => setGroup(index, moveSizeGroupRung(group, rungIndex, rungIndex + 1))} aria-label={`Move ${title} down`} title="Move down"><ArrowDown size={14} /></button>
+            <button className="icon-button icon-button--danger" type="button" onClick={() => setGroup(index, removeRung(group, rungIndex))} aria-label={`Remove ${title}`} title="Remove"><X size={14} /></button>
+          </div>
+        </li>)}</ol>
+        <button className="button button--secondary resource-picker-button" type="button" disabled={previewMode || !window.shopify?.resourcePicker} onClick={async () => setGroup(index, sizeGroupFromProducts(group, await pickResources('product', group.product_ids, 20)))}><PackageSearch size={15} />Add ladder products</button>
+      </div>)}</div>
+      <button className="text-button" type="button" disabled={configuration.product_swap_size_groups.length >= 12} onClick={() => update('product_swap_size_groups', [...configuration.product_swap_size_groups, newSizeGroup()])}><Plus size={16} />Add size group</button>
+    </Section>}
+  </>;
+}
+
 function FeaturePreview({configuration, activeView}: {configuration: CartFeaturesConfiguration; activeView: FeatureView}) {
   const reward = [...configuration.tiered_rewards].sort((a, b) => a.goal - b.goal)[0];
   const progress = reward ? Math.min(100, Math.round(749 / reward.goal * 100)) : 0;
@@ -337,8 +455,8 @@ function validate(configuration: CartFeaturesConfiguration): string | null {
   if (configuration.one_tick_sku_enabled && !configuration.one_tick_sku_rules.length) return 'Add at least one SKU-level one-tick rule.';
   if (configuration.one_tick_sku_rules.some((rule) => !rule.variant_id || !rule.variant_title.trim() || !rule.text.text.trim())) return 'Complete every SKU-level one-tick rule.';
   if (configuration.one_tick_sku_rules.some((rule) => rule.applicable_on !== 'all' && !rule.trigger_ids.length)) return 'Select products or collections for every targeted one-tick rule.';
-  if (configuration.product_swap_rules.some((rule) => !rule.trigger_id || !rule.target_variant_id || !rule.pill_label.trim())) return 'Complete every product swap rule.';
-  if (configuration.product_swap_size_groups.some((group) => group.variant_ids.length < 2)) return 'Each size group needs at least two ordered variants.';
+  if (configuration.product_swap_rules.some((rule) => !rule.trigger_id || !rule.trigger_product_ids.length || !rule.target_variant_id || !rule.pill_label.trim())) return 'Complete every product swap rule and refresh its trigger selection.';
+  if (configuration.product_swap_size_groups.some((group) => !group.title.trim() || group.product_ids.length < 2)) return 'Each size group needs a name and at least two ordered products.';
   return null;
 }
 
@@ -393,8 +511,6 @@ export function CartFeaturesPage({previewMode}: {previewMode: boolean}) {
   };
 
   const setReward = (index: number, next: TierReward) => update('tiered_rewards', configuration.tiered_rewards.map((reward, rewardIndex) => rewardIndex === index ? next : reward));
-  const setRule = (index: number, next: ProductSwapRule) => update('product_swap_rules', configuration.product_swap_rules.map((rule, ruleIndex) => ruleIndex === index ? next : rule));
-  const setGroup = (index: number, next: ProductSwapSizeGroup) => update('product_swap_size_groups', configuration.product_swap_size_groups.map((group, groupIndex) => groupIndex === index ? next : group));
   const selectView = (view: FeatureView) => {
     if (view === activeView) return;
     if (dirty) {
@@ -413,6 +529,6 @@ export function CartFeaturesPage({previewMode}: {previewMode: boolean}) {
     {activeView === 'gifts' && <><Section title="Free gifts" description="Create zero-price gift offers and recalculate eligibility as the cart changes."><Toggle checked={configuration.free_gifts_enabled} label="Enable" onChange={(value) => update('free_gifts_enabled', value)} />{configuration.free_gifts_enabled && <div className="nested-settings"><Toggle checked={configuration.free_gifts_copy_inventory} label="Copy inventory setup from main product" description="Create a separate gift variant and keep its SKU, barcode, tracking, and stock aligned with the selected source variant." onChange={(value) => update('free_gifts_copy_inventory', value)} /><div className="field"><span>Choose free gift addition method</span><ChoiceGroup name="Gift addition method" value={configuration.free_gift_method} columns={2} onChange={(value) => update('free_gift_method', value as CartFeaturesConfiguration['free_gift_method'])} options={[{value: 'auto', label: 'Auto add to cart', description: 'Automatically adds the first gift option.'}, {value: 'choice', label: 'Let customers choose', description: 'Lets the shopper select one configured option.'}]} /></div><Toggle checked={configuration.free_gift_congratulations} label="Congratulations popup" description="Celebrate when a gift is added." onChange={(value) => update('free_gift_congratulations', value)} /></div>}</Section>{configuration.free_gifts_enabled && <GiftOffersEditor offers={configuration.free_gift_offers} previewMode={previewMode} onChange={(offers) => update('free_gift_offers', offers)} />}</>}
     {activeView === 'rewards' && <><Section title="Tiered reward" description="Build cart milestones that update as shoppers add products."><Toggle checked={configuration.tiered_rewards_enabled} label="Enable" onChange={(value) => update('tiered_rewards_enabled', value)} />{configuration.tiered_rewards_enabled && <div className="nested-settings"><div className="field"><span>Reward condition</span><ChoiceGroup name="Reward condition" value={configuration.tiered_reward_condition} onChange={(value) => update('tiered_reward_condition', value as CartFeaturesConfiguration['tiered_reward_condition'])} options={[{value: 'cart_subtotal', label: 'Cart subtotal'}, {value: 'cart_quantity', label: 'Cart quantity'}, {value: 'cart_discount_price', label: 'Cart discount price'}]} /></div><div className="field-grid"><ColorField label="Primary color" value={configuration.tiered_primary_color} onChange={(value) => update('tiered_primary_color', value)} /><ColorField label="Secondary color" value={configuration.tiered_secondary_color} onChange={(value) => update('tiered_secondary_color', value)} /></div><Toggle checked={configuration.tiered_confetti_enabled} label="Show confetti on goal achievement" onChange={(value) => update('tiered_confetti_enabled', value)} /><SelectField label="Applicable on" value={configuration.tiered_applicable_on} options={[{value: 'all', label: 'All products'}, {value: 'products', label: 'Specific products'}, {value: 'collections', label: 'Specific collections'}]} onChange={(value) => { update('tiered_applicable_on', value as CartFeaturesConfiguration['tiered_applicable_on']); update('tiered_applicable_ids', []); update('tiered_applicable_titles', []); update('tiered_applicable_product_ids', []); }} /><TierScopeField configuration={configuration} previewMode={previewMode} onChange={(change) => setConfiguration((current) => ({...current, ...change}))} /><Toggle checked={configuration.tiered_exclude_discounts} label="Exclude discounts from eligibility" onChange={(value) => update('tiered_exclude_discounts', value)} /><Field label="Text after all milestones" value={configuration.tiered_completion_text} maxLength={160} onChange={(value) => update('tiered_completion_text', value)} /></div>}</Section>{configuration.tiered_rewards_enabled && <Section title="Rewards"><div className="feature-item-list">{configuration.tiered_rewards.map((reward, index) => <div className="feature-item" key={reward.id}><ItemHeader title={`Reward ${index + 1}`} onRemove={() => update('tiered_rewards', configuration.tiered_rewards.filter((item) => item.id !== reward.id))} /><div className="field-grid"><Field label="Spend goal" type="number" value={reward.goal} onChange={(value) => setReward(index, {...reward, goal: Math.max(1, Number(value))})} /><SelectField label="Reward type" value={reward.reward_type} options={[{value: 'shipping', label: 'Shipping'}, {value: 'free_gift', label: 'Free gift'}, {value: 'discount', label: 'Discount'}, {value: 'custom', label: 'Custom'}]} onChange={(value) => setReward(index, {...reward, reward_type: value as TierReward['reward_type']})} /></div><Field label="Reward text" value={reward.reward_text} maxLength={16} onChange={(value) => setReward(index, {...reward, reward_text: value})} /><Field label="Text before hitting the goal" value={reward.before_text} maxLength={160} onChange={(value) => setReward(index, {...reward, before_text: value})} /><RewardFulfillmentFields configuration={configuration} discounts={discounts} reward={reward} onChange={(next) => setReward(index, next)} /></div>)}</div><button className="text-button" type="button" disabled={configuration.tiered_rewards.length >= 12} onClick={() => update('tiered_rewards', [...configuration.tiered_rewards, newReward()])}><Plus size={16} />Add reward</button></Section>}</>}
     {activeView === 'one_tick' && <><Section title="Cart-level one-tick upsell" description="Add gift wrapping or another cart add-on with one interaction."><Toggle checked={configuration.one_tick_enabled} label="Enable" onChange={(value) => update('one_tick_enabled', value)} />{configuration.one_tick_enabled && <div className="nested-settings"><RichField label="Text to display" value={configuration.one_tick_text} onChange={(value) => update('one_tick_text', value)} /><ResourceField label="Product variant" type="variant" previewMode={previewMode} value={configuration.one_tick_variant_id} title={configuration.one_tick_variant_title} onChange={(resource) => { update('one_tick_variant_id', resource?.id || null); update('one_tick_variant_title', resource?.displayName || resource?.title || ''); }} /></div>}</Section><Section title="SKU/Product level one-tick upsell" description="Create targeted add-ons for products or collections in the cart."><Toggle checked={configuration.one_tick_sku_enabled} label="Enable SKU level add-ons" onChange={(value) => update('one_tick_sku_enabled', value)} />{configuration.one_tick_sku_enabled && <div className="nested-settings"><OneTickSkuRulesEditor rules={configuration.one_tick_sku_rules} previewMode={previewMode} onChange={(rules) => update('one_tick_sku_rules', rules)} /></div>}</Section>{configuration.one_tick_sku_enabled && <Section title="Remove upsell item if main SKU is removed" description="Remove the associated one-tick item when no matching primary product remains."><Toggle checked={configuration.one_tick_remove_with_parent} label="Enable" onChange={(value) => update('one_tick_remove_with_parent', value)} /></Section>}{configuration.one_tick_sku_enabled && <Section title="Add multiple upsell units for multiple quantity" description="Keep the upsell quantity aligned with the matching primary-product quantity."><Toggle checked={configuration.one_tick_match_parent_quantity} label="Enable" onChange={(value) => update('one_tick_match_parent_quantity', value)} /></Section>}{(configuration.one_tick_enabled || configuration.one_tick_sku_enabled) && <Section title="One-tick controls"><Toggle checked={configuration.one_tick_disable_quantity_changes} label="Disable customer quantity changes" description="Prevent shoppers from editing one-tick item quantities directly." onChange={(value) => update('one_tick_disable_quantity_changes', value)} /><Toggle checked={configuration.one_tick_disable_checkout_only} label="Disable checkout for only one-tick items" description="Require at least one regular cart item." onChange={(value) => update('one_tick_disable_checkout_only', value)} /></Section>}</>}
-    {activeView === 'swap' && <><Section title="Product swap" description="Offer a one-tap replacement with a larger size or better-value pack."><Toggle checked={configuration.product_swap_enabled} label="Enable" onChange={(value) => update('product_swap_enabled', value)} />{configuration.product_swap_enabled && <div className="nested-settings"><div className="field"><span>One-tick coexistence</span><ChoiceGroup name="Swap coexistence" columns={2} value={configuration.product_swap_coexistence} onChange={(value) => update('product_swap_coexistence', value as CartFeaturesConfiguration['product_swap_coexistence'])} options={[{value: 'swap', label: 'Show swap only'}, {value: 'upsell', label: 'Show upsell only'}]} /></div><Toggle checked={configuration.product_swap_automatic_upgrade} label="Automatic variant upgrade" description="Offer the next higher-priced in-stock variant." onChange={(value) => update('product_swap_automatic_upgrade', value)} /></div>}</Section>{configuration.product_swap_enabled && <Section title="Manual swap rules"><div className="feature-item-list">{configuration.product_swap_rules.map((rule, index) => <div className="feature-item" key={rule.id}><ItemHeader title={`Rule ${index + 1}`} onRemove={() => update('product_swap_rules', configuration.product_swap_rules.filter((item) => item.id !== rule.id))} /><Toggle checked={rule.enabled} label="Enabled" onChange={(value) => setRule(index, {...rule, enabled: value})} /><SelectField label="Trigger scope" value={rule.trigger_scope} options={[{value: 'product', label: 'Specific product'}, {value: 'collection', label: 'Collection'}]} onChange={(value) => setRule(index, {...rule, trigger_scope: value as ProductSwapRule['trigger_scope'], trigger_id: '', trigger_title: ''})} /><ResourceField label="Trigger" type={rule.trigger_scope} previewMode={previewMode} value={rule.trigger_id || null} title={rule.trigger_title} onChange={(resource) => setRule(index, {...rule, trigger_id: resource?.id || '', trigger_title: resource?.title || resource?.displayName || ''})} /><SelectField label="Use case" value={rule.use_case} options={[{value: 'size_upgrade', label: 'Size upgrade'}, {value: 'alternative', label: 'Alternative product'}, {value: 'multipack', label: 'Multipack / bundle'}]} onChange={(value) => setRule(index, {...rule, use_case: value as ProductSwapRule['use_case']})} /><ResourceField label="Target variant" type="variant" previewMode={previewMode} value={rule.target_variant_id || null} title={rule.target_variant_title} onChange={(resource) => setRule(index, {...rule, target_variant_id: resource?.id || '', target_variant_title: resource?.displayName || resource?.title || ''})} /><div className="field-grid"><Field label="Pill label" value={rule.pill_label} maxLength={40} onChange={(value) => setRule(index, {...rule, pill_label: value})} /><SelectField label="Nudge strategy" value={rule.nudge_strategy} options={[{value: 'automatic', label: 'Automatic'}, {value: 'mrp_discount', label: 'MRP discount'}, {value: 'custom', label: 'Custom claim'}]} onChange={(value) => setRule(index, {...rule, nudge_strategy: value as ProductSwapRule['nudge_strategy']})} /></div></div>)}</div><button className="text-button" type="button" onClick={() => update('product_swap_rules', [...configuration.product_swap_rules, newSwapRule()])}><Plus size={16} />Add swap rule</button></Section>}{configuration.product_swap_enabled && <Section title="Size groups" description="Build ordered ladders where each selected variant is the next upgrade."><div className="feature-item-list">{configuration.product_swap_size_groups.map((group, index) => <div className="feature-item" key={group.id}><ItemHeader title={`Size group ${index + 1}`} onRemove={() => update('product_swap_size_groups', configuration.product_swap_size_groups.filter((item) => item.id !== group.id))} /><Field label="Group title" value={group.title} maxLength={80} onChange={(value) => setGroup(index, {...group, title: value})} /><ol className="size-group-list">{group.variant_titles.map((title, variantIndex) => <li key={group.variant_ids[variantIndex]}><span>{variantIndex + 1}</span><strong>{title}</strong><button className="icon-button" type="button" onClick={() => setGroup(index, {...group, variant_ids: group.variant_ids.filter((_, itemIndex) => itemIndex !== variantIndex), variant_titles: group.variant_titles.filter((_, itemIndex) => itemIndex !== variantIndex)})} aria-label={`Remove ${title}`}><X size={14} /></button></li>)}</ol><button className="button button--secondary" type="button" disabled={previewMode || !window.shopify?.resourcePicker} onClick={async () => { const resource = await pickResource('variant'); if (resource && !group.variant_ids.includes(resource.id)) setGroup(index, {...group, variant_ids: [...group.variant_ids, resource.id], variant_titles: [...group.variant_titles, resource.displayName || resource.title || resource.id]}); }}><Plus size={15} />Add next variant</button></div>)}</div><button className="text-button" type="button" onClick={() => update('product_swap_size_groups', [...configuration.product_swap_size_groups, newSizeGroup()])}><Plus size={16} />Add size group</button></Section>}</>}
+    {activeView === 'swap' && <ProductSwapEditor configuration={configuration} previewMode={previewMode} update={update} />}
   </div><div className="preview-column"><div className="preview-column__heading"><span>Live preview</span><small>{featureViews.find((view) => view.id === activeView)?.label}</small></div><FeaturePreview configuration={configuration} activeView={activeView} /></div></div>{dirty && <div className="save-bar" role="region" aria-label="Unsaved changes"><span>Unsaved changes</span><div><button className="button button--secondary" type="button" onClick={() => { setConfiguration(clone(saved)); setError(null); }}><RotateCcw size={16} />Discard</button><button className="button button--primary" type="button" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button></div></div>}</div>;
 }

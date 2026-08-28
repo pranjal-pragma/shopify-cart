@@ -120,6 +120,19 @@ def validated_cart_features_section(configuration: dict[str, object]) -> CartFea
         }
     if section.get("one_tick_sku_enabled") and not section.get("one_tick_sku_rules"):
         section = {**section, "one_tick_sku_enabled": False}
+    swap_rules = section.get("product_swap_rules")
+    if isinstance(swap_rules, list):
+        migrated_rules: list[object] = []
+        for rule in swap_rules:
+            if (
+                isinstance(rule, dict)
+                and rule.get("trigger_scope", "product") == "product"
+                and rule.get("trigger_id")
+                and not rule.get("trigger_product_ids")
+            ):
+                rule = {**rule, "trigger_product_ids": [rule["trigger_id"]]}
+            migrated_rules.append(rule)
+        section = {**section, "product_swap_rules": migrated_rules}
     return CartFeaturesConfiguration.model_validate(section)
 
 
